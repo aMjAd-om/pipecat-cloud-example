@@ -1,0 +1,11 @@
+[project]
+name = "pipecat-cloud-example"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "pipecat-ai[assemblyai,cartesia,daily,openai,silero,webrtc]>=0.0.71",
+    "pipecatcloud>=0.1.7",
+    "python-dotenv~=1.0.1",
+]
