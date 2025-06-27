@@ -173,13 +173,17 @@ pcc agent start my-first-agent --use-daily
 
 This will return a URL, which you can use to connect to your running agent.
 
-## Documentation
+## Documentation & Resources
 
 For more details on Pipecat Cloud and its capabilities:
 
 - [Pipecat Cloud Documentation](https://docs.pipecat.daily.co)
 - [Pipecat Project Documentation](https://docs.pipecat.ai)
+- [Pipecat Discord community](https://discord.gg/dailyco) for help and discussions.
 
-## Support
+For AssemblyAI:
 
-Join our [Discord community](https://discord.gg/dailyco) for help and discussions.
+- [AssemblyAI Universal Streaming](https://www.assemblyai.com/blog/introducing-universal-streaming)
+- [AssemblyAI's Developer Documentation](https://www.assemblyai.com/docs)
+- [AssemblyAI Discord community](https://discord.com/invite/CEqt6x2YPK)
+
