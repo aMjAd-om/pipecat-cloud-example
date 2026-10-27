@@ -16,6 +16,7 @@ from pipecat.processors.frameworks.rtvi import RTVIProcessor
 
 from azure_services import StreamingAzureSTT, StreamingAzureTTS, FoundryLLMService
 from config import load_settings
+from diagnostics import safe_diagnostic
 from instrumentation import LatencyProbe, TurnTiming
 
 
@@ -58,7 +59,8 @@ async def main(connection, *, stop_event=None):
 
     @task.event_handler("on_frame_reached_upstream")
     async def report_error(_task, frame):
-        logger.error("Pipeline service error; fatal={}", frame.fatal)
+        logger.error("Pipeline service error; fatal={}; {}", frame.fatal,
+                     safe_diagnostic(frame.error))
         await rtvi.send_error("A voice service failed. Please stop and restart the conversation.")
 
     greeted = False

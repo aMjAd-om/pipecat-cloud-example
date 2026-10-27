@@ -13,7 +13,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 COPY pyproject.toml uv.lock README.md ./
 RUN uv sync --frozen --no-dev --no-install-project
-COPY bot.py main.py server.py config.py azure_services.py instrumentation.py verify_services.py ./
+COPY bot.py main.py server.py config.py azure_services.py instrumentation.py verify_services.py diagnostics.py ./
 COPY --from=frontend /frontend/dist ./frontend/dist
 RUN useradd --create-home agent
 USER agent

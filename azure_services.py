@@ -20,6 +20,7 @@ from pipecat.services.openai.llm import OpenAILLMService
 from pipecat.services.azure.tts import AzureBaseTTSService, sample_rate_to_output_format
 from pipecat.transcriptions.language import Language
 from pipecat.utils.time import time_now_iso8601
+from diagnostics import speech_cancellation
 
 
 class FoundryLLMService(OpenAILLMService):
@@ -87,7 +88,7 @@ class StreamingAzureSTT(STTService):
             signal.connect(lambda event, k=kind: self._event(generation, k, event))
         await asyncio.wait_for(asyncio.to_thread(
             lambda: recognizer.start_continuous_recognition_async().get()), 15)
-        logger.info("Azure STT continuous recognition connected, 16000 Hz mono PCM")
+        logger.info("Azure STT recognizer started, 16000 Hz mono PCM; awaiting service events")
 
     async def _disconnect(self):
         self._generation += 1  # Invalidate callbacks before stopping the old connection.
@@ -129,7 +130,11 @@ class StreamingAzureSTT(STTService):
             if generation != self._generation:
                 continue
             if kind in ("canceled", "stopped"):
-                logger.warning("Azure STT recognition connection ended; reconnecting")
+                if kind == "canceled":
+                    logger.warning("Azure STT canceled: {}; reconnecting",
+                                   speech_cancellation(event))
+                else:
+                    logger.warning("Azure STT session stopped; reconnecting")
                 await self._recover()
                 continue
             result = event.result
@@ -221,7 +226,7 @@ class StreamingAzureTTS(AzureBaseTTSService):
         synth.synthesizing.connect(lambda e: emit("audio", bytes(e.result.audio_data))
                                   if e.result.audio_data else None)
         synth.synthesis_completed.connect(lambda e: emit("done"))
-        synth.synthesis_canceled.connect(lambda e: emit("error"))
+        synth.synthesis_canceled.connect(lambda e: emit("error", e))
         self.timing.mark("tts_start", once=True)
         try:
             yield TTSStartedFrame()
@@ -231,6 +236,8 @@ class StreamingAzureTTS(AzureBaseTTSService):
                 if kind == "done":
                     break
                 if kind == "error":
+                    logger.error("Azure TTS canceled: {}", speech_cancellation(
+                        getattr(getattr(data, "result", None), "cancellation_details", None)))
                     yield ErrorFrame("Azure TTS request canceled or failed")
                     break
                 self.timing.mark("tts_first", once=True)

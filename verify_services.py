@@ -11,6 +11,7 @@ from pathlib import Path
 import azure.cognitiveservices.speech as speechsdk
 from openai import AsyncOpenAI
 from config import load_settings
+from diagnostics import safe_diagnostic, speech_cancellation
 
 
 async def llm_check():
@@ -60,7 +61,8 @@ async def tts_check():
             result = await asyncio.wait_for(asyncio.to_thread(
                 lambda: synth.speak_text_async(text).get()), 30)
             if result.reason != speechsdk.ResultReason.SynthesizingAudioCompleted or not first:
-                raise RuntimeError("TTS canceled or no streaming audio")
+                raise RuntimeError("TTS canceled or no streaming audio: " +
+                                   speech_cancellation(result.cancellation_details))
             print(f"TTS {language} PASS bytes={len(result.audio_data)} "
                   f"first_audio_ms={(first[0]-start)*1000:.1f}")
         finally:
@@ -105,7 +107,7 @@ async def stt_check(path):
         while time.monotonic() < deadline:
             kind, event, at = await asyncio.wait_for(events.get(), deadline-time.monotonic())
             if kind == "error":
-                raise RuntimeError("STT recognition canceled")
+                raise RuntimeError("STT recognition canceled: " + speech_cancellation(event))
             if event.result.text:
                 print(f"STT {kind} event chars={len(event.result.text)}")
                 if kind == "partial":
@@ -134,7 +136,8 @@ async def speech_roundtrip():
         result = await asyncio.wait_for(asyncio.to_thread(lambda: synth.speak_text_async(
             "السلام عليكم كيف حالك اليوم وما اسمك؟").get()), 30)
         if result.reason != speechsdk.ResultReason.SynthesizingAudioCompleted:
-            raise RuntimeError("Synthetic STT fixture synthesis failed")
+            raise RuntimeError("Synthetic STT fixture synthesis failed: " +
+                               speech_cancellation(result.cancellation_details))
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "synthetic-arabic.wav"
             with wave.open(str(path), "wb") as wav:
@@ -172,5 +175,6 @@ if __name__ == "__main__":
     try:
         asyncio.run(main())
     except Exception as exc:
-        print(f"Verification FAIL ({type(exc).__name__}); check .env and connectivity.", file=sys.stderr)
+        print(f"Verification FAIL ({type(exc).__name__}): {safe_diagnostic(exc)}",
+              file=sys.stderr)
         sys.exit(1)

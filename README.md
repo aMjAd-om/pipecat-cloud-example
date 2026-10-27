@@ -180,6 +180,23 @@ uv run --frozen python verify_services.py speech-roundtrip
 uv run --frozen python verify_services.py stt --wav /path/to/test-16k-mono.wav
 ```
 
+If the server connects WebRTC but repeatedly logs Azure STT cancellations, run
+the checks **inside the deployed container** to use its credentials and network:
+
+```bash
+docker compose -f docker-compose.ubuntu.yml exec agent python verify_services.py tts
+docker compose -f docker-compose.ubuntu.yml exec agent python verify_services.py speech-roundtrip
+```
+
+The roundtrip synthesizes a test phrase before checking recognition, so resolve any
+TTS failure first. Backend logs and checks include Azure cancellation reason, error
+code, and error details, with configured credentials and endpoint URLs redacted.
+`recognizer started` means the SDK started locally; it does not confirm Azure accepted
+the connection. For `AuthenticationFailure`, verify the Speech key and region belong
+to the same Azure resource. For connection failures, check container DNS, outbound
+HTTPS/WebSockets, proxy settings, and Azure resource network restrictions. Quota and
+request errors require the corresponding Azure resource or voice/language correction.
+
 Backend regressions:
 
 ```bash

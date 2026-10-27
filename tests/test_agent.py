@@ -63,6 +63,26 @@ class AgentTests(unittest.IsolatedAsyncioTestCase):
         self.env.start()
         self.addCleanup(self.env.stop)
 
+    async def test_stt_cancellation_reports_provider_error_without_credentials(self):
+        stt = services.StreamingAzureSTT(timing=TurnTiming())
+        stt._generation = 1
+        stt._recover = AsyncMock()
+        event = NS(reason="Error", error_code="AuthenticationFailure",
+                   error_details="Invalid key test at https://speech.example/?token=private")
+        with patch.object(services.logger, "warning") as warning:
+            worker = asyncio.create_task(stt._consume())
+            try:
+                await stt._events.put((1, "canceled", event, 1.0))
+                await asyncio.sleep(0.01)
+                stt._recover.assert_awaited_once()
+                details = warning.call_args.args[1]
+                self.assertIn("AuthenticationFailure", details)
+                self.assertNotIn("test", details)
+                self.assertNotIn("private", details)
+            finally:
+                worker.cancel()
+                await asyncio.gather(worker, return_exceptions=True)
+
     async def test_stt_partial_final_dedup_silence_and_repeated_phrase(self):
         stt = services.StreamingAzureSTT(timing=TurnTiming())
         stt.push_frame = AsyncMock()
@@ -123,11 +143,14 @@ class AgentTests(unittest.IsolatedAsyncioTestCase):
     async def test_tts_failure_returns_error_and_cleans_up(self):
         class FailingSynth(Synth):
             def speak_ssml_async(self, text):
-                self.synthesis_canceled.fire()
+                self.synthesis_canceled.fire(NS(result=NS(cancellation_details=NS(
+                    reason="Error", error_code="Forbidden", error_details="Quota exceeded"))))
         with patch.object(services.speechsdk, "SpeechSynthesizer", FailingSynth):
             tts = services.StreamingAzureTTS(timing=TurnTiming())
             tts._sample_rate = 24000
-            frames = [f async for f in tts.run_tts("Hello")]
+            with patch.object(services.logger, "error") as error:
+                frames = [f async for f in tts.run_tts("Hello")]
+                self.assertIn("Forbidden", error.call_args.args[1])
             self.assertTrue(any(isinstance(f, ErrorFrame) for f in frames))
             self.assertTrue(Synth.instances[-1].stopped)
 
