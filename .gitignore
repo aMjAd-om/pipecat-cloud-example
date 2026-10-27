@@ -24,6 +24,10 @@ MANIFEST
 venv/
 env/
 .env
+.env.*
+!.env.example
+.history/
+node_modules/
 .venv/
 ENV/
 env.bak/

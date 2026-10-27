@@ -1,0 +1,16 @@
+:root { font: 17px/1.6 system-ui, sans-serif; color: #233040; background: #f2f4f7; }
+body { margin: 0; padding: 6vh 20px; }
+main { max-width: 660px; margin: auto; padding: 36px; background: white; border: 1px solid #dde3e9; border-radius: 18px; }
+h1 { line-height: 1.2; font-size: 2rem; }
+.eyebrow { font-size: 12px; letter-spacing: .16em; color: #54677e; }
+.status { display: flex; align-items: center; gap: 12px; margin: 30px 0; }
+#indicator { width: 10px; height: 10px; border-radius: 50%; background: #9aa6b2; }
+body[data-connected="true"] #indicator { background: #12805c; }
+.controls { display: flex; flex-wrap: wrap; gap: 10px; }
+button { border: 1px solid #becbd7; border-radius: 8px; padding: 12px 16px; background: white; color: inherit; font: inherit; cursor: pointer; }
+#start { background: #164a77; color: white; border-color: #164a77; }
+button:disabled { opacity: .45; cursor: default; }
+button:focus-visible { outline: 3px solid #80b5e7; outline-offset: 3px; }
+#error { color: #a52222; min-height: 1.6em; }
+.muted { font-size: 14px; color: #607083; }
+@media(max-width: 480px) { main { padding: 24px; } }

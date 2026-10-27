@@ -1,11 +1,16 @@
 [project]
-name = "pipecat-cloud-example"
+name = "azure-voice-agent-local"
 version = "0.1.0"
-description = "Add your description here"
+description = "Experimental local Pipecat Azure voice agent with self-hosted SmallWebRTC"
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.11,<3.13"
 dependencies = [
-    "pipecat-ai[assemblyai,cartesia,daily,openai,silero,webrtc]>=0.0.71",
-    "pipecatcloud>=0.1.7",
+    "pipecat-ai[azure,openai,silero,webrtc]==0.0.72",
+    "azure-cognitiveservices-speech~=1.42.0",
+    "openai~=1.70.0",
     "python-dotenv~=1.0.1",
+    "fastapi~=0.115.6",
+    "uvicorn~=0.34.0",
+    # aiortc 1.11 supports av<15; 14.4 has no Windows wheels.
+    "av==14.2.0; sys_platform == 'win32'",
 ]

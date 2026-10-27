@@ -1,3 +1,8 @@
-pipecatcloud
-pipecat-ai[cartesia,daily,openai,silero,assemblyai,webrtc]>=0.0.71
+# Use uv sync --frozen for a fully locked installation.
+pipecat-ai[azure,openai,silero,webrtc]==0.0.72
+azure-cognitiveservices-speech~=1.42.0
+openai~=1.70.0
 python-dotenv~=1.0.1
+fastapi~=0.115.6
+uvicorn~=0.34.0
+av==14.2.0; sys_platform == 'win32'

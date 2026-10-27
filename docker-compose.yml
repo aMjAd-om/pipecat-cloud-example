@@ -1,0 +1,11 @@
+services:
+  agent:
+    build: .
+    env_file: .env
+    environment:
+      HOST: 0.0.0.0
+    ports:
+      - "127.0.0.1:7860:7860"
+    init: true
+    stop_grace_period: 35s
+    restart: "no"

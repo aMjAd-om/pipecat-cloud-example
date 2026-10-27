@@ -1,0 +1,12 @@
+# Ubuntu/Linux host networking exposes ICE UDP sockets on the host's interfaces.
+# This file is standalone; do not combine it with the bridge-network development file.
+services:
+  agent:
+    build: .
+    env_file: .env
+    environment:
+      HOST: 127.0.0.1
+    network_mode: host
+    init: true
+    stop_grace_period: 35s
+    restart: "no"

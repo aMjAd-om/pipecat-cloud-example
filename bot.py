@@ -1,183 +1,119 @@
-#
-# Copyright (c) 2025, Daily
-#
-# SPDX-License-Identifier: BSD 2-Clause License
-#
-
+"""One isolated Azure pipeline per native SmallWebRTC connection."""
+import asyncio
 import os
+import sys
 
-import aiohttp
-from dotenv import load_dotenv
 from loguru import logger
 from pipecat.audio.vad.silero import SileroVADAnalyzer
-from pipecat.frames.frames import LLMMessagesFrame
 from pipecat.pipeline.pipeline import Pipeline
 from pipecat.pipeline.runner import PipelineRunner
 from pipecat.pipeline.task import PipelineParams, PipelineTask
 from pipecat.processors.aggregators.openai_llm_context import OpenAILLMContext
-from pipecat.services.cartesia.tts import CartesiaTTSService
 from pipecat.services.openai.llm import OpenAILLMService
-from pipecat.transports.services.daily import DailyParams, DailyTransport
-from pipecatcloud.agent import DailySessionArguments
-from pipecat.services.assemblyai.stt import AssemblyAISTTService, AssemblyAIConnectionParams
-from pipecat.processors.transcript_processor import TranscriptProcessor
+from pipecat.transports.base_transport import TransportParams
+from pipecat.transports.network.small_webrtc import SmallWebRTCTransport
+from pipecat.processors.frameworks.rtvi import RTVIProcessor
 
-# Check if we're in local development mode
-LOCAL_RUN = os.getenv("LOCAL_RUN")
-if LOCAL_RUN:
-    import asyncio
-    import webbrowser
-
-    try:
-        from local_runner import configure
-    except ImportError:
-        logger.error("Could not import local_runner module. Local development mode may not work.")
-
-# Load environment variables
-load_dotenv(override=True)
+from azure_services import StreamingAzureSTT, StreamingAzureTTS, FoundryLLMService
+from config import load_settings
+from instrumentation import LatencyProbe, TurnTiming
 
 
-async def main(room_url: str, token: str):
-    """Main pipeline setup and execution function.
-
-    Args:
-        room_url: The Daily room URL
-        token: The Daily room token
-    """
-    logger.debug("Starting bot in room: {}", room_url)
-
-    transport = DailyTransport(
-        room_url,
-        token,
-        "bot",
-        DailyParams(
-            audio_out_enabled=True,
-            transcription_enabled=True,
-            vad_enabled=True,
-            vad_analyzer=SileroVADAnalyzer(),
-        ),
+async def main(connection, *, stop_event=None):
+    timing = TurnTiming()
+    transport = SmallWebRTCTransport(connection, TransportParams(
+        audio_in_enabled=True, audio_out_enabled=True,
+        audio_in_sample_rate=16000, audio_out_sample_rate=24000,
+        vad_analyzer=SileroVADAnalyzer(),
+    ))
+    stt = StreamingAzureSTT(timing=timing)
+    llm = FoundryLLMService(
+        api_key=os.environ["AZURE_OPENAI_API_KEY"],
+        base_url=os.environ["AZURE_OPENAI_BASE_URL"],
+        model=os.environ["AZURE_OPENAI_DEPLOYMENT"],
+        params=OpenAILLMService.InputParams(temperature=0.2, max_tokens=150),
     )
+    tts = StreamingAzureTTS(timing=timing)
+    context = OpenAILLMContext([{"role": "system", "content": (
+        "You are a friendly bilingual Arabic and English voice assistant. "
+        "Begin with a brief Arabic greeting and introduce yourself. "
+        "Reply in Arabic unless the customer speaks or requests English. "
+        "Use one or two short sentences, plain spoken text, no markdown. "
+        "Do not repeat a greeting after the first turn."
+    )}])
+    aggregator = llm.create_context_aggregator(context)
+    rtvi = RTVIProcessor(transport=transport)
+    pipeline = Pipeline([
+        transport.input(), rtvi, LatencyProbe(timing, "input"), stt,
+        aggregator.user(), LatencyProbe(timing, "request"), llm,
+        LatencyProbe(timing, "llm"), tts, LatencyProbe(timing, "audio"),
+        transport.output(), aggregator.assistant(),
+    ])
+    task = PipelineTask(pipeline, params=PipelineParams(
+        audio_in_sample_rate=16000, audio_out_sample_rate=24000,
+        allow_interruptions=True, enable_metrics=True, enable_usage_metrics=True,
+    ))
+    from pipecat.frames.frames import ErrorFrame
+    task.set_reached_upstream_filter((ErrorFrame,))
 
-    tts = CartesiaTTSService(
-        api_key=os.getenv("CARTESIA_API_KEY"), voice_id="79a125e8-cd45-4c13-8a67-188112f4dd22"
-    )
+    @task.event_handler("on_frame_reached_upstream")
+    async def report_error(_task, frame):
+        logger.error("Pipeline service error; fatal={}", frame.fatal)
+        await rtvi.send_error("A voice service failed. Please stop and restart the conversation.")
 
-    llm = OpenAILLMService(api_key=os.getenv("OPENAI_API_KEY"), model="gpt-4o")
+    greeted = False
 
-    messages = [
-        {
-            "role": "system",
-            "content": "You are a helpful LLM in a WebRTC call. Your goal is to demonstrate your capabilities in a succinct way. Your output will be converted to audio so don't include special characters in your answers. Respond to what the user said in a creative and helpful way.",
-        },
-    ]
+    @rtvi.event_handler("on_client_ready")
+    async def greet(_rtvi):
+        nonlocal greeted
+        await rtvi.set_bot_ready()
+        if not greeted:
+            greeted = True
+            await task.queue_frames([aggregator.user().get_context_frame()])
 
-    context = OpenAILLMContext(messages)
-    context_aggregator = llm.create_context_aggregator(context)
-
-    stt = AssemblyAISTTService(
-        connection_params=AssemblyAIConnectionParams(
-            end_of_turn_confidence_threshold=0.7,
-            min_end_of_turn_silence_when_confident=160,
-            max_turn_silence=2400,
-        ),
-        api_key=os.getenv("ASSEMBLYAI_API_KEY"),
-        vad_force_turn_endpoint=False
-    )
-
-    transcript = TranscriptProcessor()
-
-    pipeline = Pipeline(
-        [
-            transport.input(),
-            context_aggregator.user(),
-            stt,
-            transcript.user(),              # Process user messages
-            llm,
-            tts,
-            transport.output(),
-            transcript.assistant(),         # Process assistant messages
-            context_aggregator.assistant(),
-        ]
-    )
-
-    task = PipelineTask(
-        pipeline,
-        params=PipelineParams(
-            allow_interruptions=True,
-            enable_metrics=True,
-            enable_usage_metrics=True,
-            report_only_initial_ttfb=True,
-        ),
-    )
-
-    # Register event handler for transcript updates
-    @transcript.event_handler("on_transcript_update")
-    async def handle_update(processor, frame):
-        for msg in frame.messages:
-            print(f"{msg.role}: {msg.content}")
-
-    @transport.event_handler("on_first_participant_joined")
-    async def on_first_participant_joined(transport, participant):
-        logger.info("First participant joined: {}", participant["id"])
-        await transport.capture_participant_transcription(participant["id"])
-        # Kick off the conversation.
-        messages.append(
-            {
-                "role": "system",
-                "content": "Please start with 'Hello World' and introduce yourself to the user.",
-            }
-        )
-        await task.queue_frames([LLMMessagesFrame(messages)])
-
-    @transport.event_handler("on_participant_left")
-    async def on_participant_left(transport, participant, reason):
-        logger.info("Participant left: {}", participant)
+    @transport.event_handler("on_client_disconnected")
+    async def leave(_transport, _connection):
         await task.cancel()
 
-    runner = PipelineRunner()
-
-    await runner.run(task)
-
-
-async def bot(args: DailySessionArguments):
-    """Main bot entry point compatible with the FastAPI route handler.
-
-    Args:
-        room_url: The Daily room URL
-        token: The Daily room token
-        body: The configuration object from the request body
-        session_id: The session ID for logging
-    """
-    logger.info(f"Bot process initialized {args.room_url} {args.token}")
-
+    # Uvicorn owns process signals; individual sessions must not install handlers.
+    runner = PipelineRunner(handle_sigint=False)
+    running = asyncio.create_task(runner.run(task))
+    stopping = asyncio.create_task(stop_event.wait()) if stop_event else None
     try:
-        await main(args.room_url, args.token)
-        logger.info("Bot process completed")
-    except Exception as e:
-        logger.exception(f"Error in bot process: {str(e)}")
+        if stopping:
+            await asyncio.wait((running, stopping), return_when=asyncio.FIRST_COMPLETED)
+            if not running.done():
+                # Use Pipecat cancellation before cancelling the coroutine that owns it.
+                await task.cancel()
+        await running
+    finally:
+        if stopping:
+            stopping.cancel()
+            await asyncio.gather(stopping, return_exceptions=True)
+        if not running.done():
+            running.cancel()
+            await asyncio.gather(running, return_exceptions=True)
+        await stt.close()
+        await tts.close()
+        await llm._client.close()
+
+
+def configure_logging():
+    logger.remove()
+    logger.add(sys.stderr, level=os.getenv("LOG_LEVEL", "INFO"))
+    try:
+        load_settings()
+    except ValueError as exc:
+        logger.error("Configuration required: {}", exc)
         raise
+    logger.remove()
+    # Third-party debug messages can contain transcripts or request bodies.
+    logger.add(sys.stderr, level=os.getenv("LOG_LEVEL", "INFO"),
+               filter=lambda r: r["name"] in {
+                   "__main__", "bot", "server", "azure_services", "instrumentation"
+               })
 
 
-# Local development functions
-async def local_main():
-    """Function for local development testing."""
-    try:
-        async with aiohttp.ClientSession() as session:
-            (room_url, token) = await configure(session)
-            logger.warning("_")
-            logger.warning("_")
-            logger.warning(f"Talk to your voice agent here: {room_url}")
-            logger.warning("_")
-            logger.warning("_")
-            webbrowser.open(room_url)
-            await main(room_url, token)
-    except Exception as e:
-        logger.exception(f"Error in local development mode: {e}")
-
-
-# Local development entry point
-if LOCAL_RUN and __name__ == "__main__":
-    try:
-        asyncio.run(local_main())
-    except Exception as e:
-        logger.exception(f"Failed to run in local mode: {e}")
+if __name__ == "__main__":
+    from server import run
+    run()

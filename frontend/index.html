@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Azure voice agent</title><link rel="stylesheet" href="/style.css"></head>
+<body><main>
+  <p class="eyebrow">VOICE LAB</p>
+  <h1>Azure voice agent</h1>
+  <p>Start a conversation, allow your microphone, and speak to the assistant.</p>
+  <p lang="ar" dir="rtl">ابدأ المحادثة وتحدث مع المساعد الصوتي.</p>
+  <div class="status"><span id="indicator"></span><span id="status" role="status">Disconnected</span></div>
+  <div class="controls">
+    <button id="start">Start conversation</button>
+    <button id="mute" disabled>Mute microphone</button>
+    <button id="stop" disabled>Stop</button>
+  </div>
+  <p id="error" role="alert"></p>
+  <p id="timing" class="muted"></p>
+  <p class="muted">Use headphones for clear audio. You can interrupt the assistant while it speaks.</p>
+  <audio id="speaker" autoplay></audio>
+</main><script type="module" src="/app.js"></script></body>
+</html>

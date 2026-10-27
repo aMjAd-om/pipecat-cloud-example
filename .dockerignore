@@ -1,0 +1,12 @@
+.git
+.history
+**/node_modules
+frontend/dist
+.env
+.env.*
+.venv
+.cache
+__pycache__
+tests
+*.wav
+*.log
