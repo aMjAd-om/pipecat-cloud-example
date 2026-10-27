@@ -1,6 +1,7 @@
 # Use uv sync --frozen for a fully locked installation.
-pipecat-ai[azure,openai,silero,webrtc]==0.0.72
-azure-cognitiveservices-speech~=1.42.0
+# Install Speech directly because Pipecat's azure extra pins the affected 1.42.x SDK.
+pipecat-ai[openai,silero,webrtc]==0.0.72
+azure-cognitiveservices-speech~=1.48.2
 openai~=1.70.0
 python-dotenv~=1.0.1
 fastapi~=0.115.6

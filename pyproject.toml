@@ -5,8 +5,9 @@ description = "Experimental local Pipecat Azure voice agent with self-hosted Sma
 readme = "README.md"
 requires-python = ">=3.11,<3.13"
 dependencies = [
-    "pipecat-ai[azure,openai,silero,webrtc]==0.0.72",
-    "azure-cognitiveservices-speech~=1.42.0",
+    # The azure extra pins the affected 1.42.x SDK; install Speech directly below.
+    "pipecat-ai[openai,silero,webrtc]==0.0.72",
+    "azure-cognitiveservices-speech~=1.48.2",
     "openai~=1.70.0",
     "python-dotenv~=1.0.1",
     "fastapi~=0.115.6",

@@ -36,7 +36,9 @@ sudo apt-get install -y libasound2 libssl3 libgomp1 libgl1 libglib2.0-0 ca-certi
 
 Windows native development is supported. PyAV is constrained to 14.2.0 on Windows
 because 14.4.0 has no Windows wheel; both versions meet aiortc 1.11's av<15 requirement.
-No Azure package or Pipecat version upgrade was required.
+Pipecat remains pinned to 0.0.72. Azure Speech SDK requires 1.48.2 or later to
+address Linux certificate revocation compatibility failures; this project uses 1.48.x.
+Speech is installed directly because Pipecat 0.0.72's optional `azure` extra pins 1.42.x.
 
 ## Docker
 
@@ -196,6 +198,12 @@ the connection. For `AuthenticationFailure`, verify the Speech key and region be
 to the same Azure resource. For connection failures, check container DNS, outbound
 HTTPS/WebSockets, proxy settings, and Azure resource network restrictions. Quota and
 request errors require the corresponding Azure resource or voice/language correction.
+
+On Linux, `WS_OPEN_ERROR_UNDERLYING_IO_OPEN_FAILED` can also indicate the
+[Speech SDK CRL compatibility issue](https://learn.microsoft.com/en-us/azure/ai-services/speech-service/migrate-to-sdk-1-48-2)
+in versions before 1.48.2. Rebuild the image from the updated lockfile and confirm
+the running SDK version with `python -c "import azure.cognitiveservices.speech as s; print(s.__version__)"`
+inside the container, then rerun the checks above.
 
 Backend regressions:
 
