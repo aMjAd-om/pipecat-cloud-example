@@ -43,7 +43,7 @@ def speech_config():
 
 async def tts_check():
     loop = asyncio.get_running_loop()
-    for language, text, default in (("AR", "السلام عليكم", "ar-OM-AyshaNeural"),
+    for language, text, default in (("AR", "السلام عليكم", "ar-SA-HamedNeural"),
                                      ("EN", "Hello, how are you?", "en-US-JennyNeural")):
         config = speech_config()
         config.speech_synthesis_voice_name = os.getenv(f"AZURE_TTS_VOICE_{language}", default)
@@ -128,7 +128,7 @@ async def stt_check(path):
 async def speech_roundtrip():
     """Generate a harmless fixture, then stream it through STT without Daily."""
     config = speech_config()
-    config.speech_synthesis_voice_name = os.getenv("AZURE_TTS_VOICE_AR", "ar-OM-AyshaNeural")
+    config.speech_synthesis_voice_name = os.getenv("AZURE_TTS_VOICE_AR", "ar-SA-HamedNeural")
     config.set_speech_synthesis_output_format(
         speechsdk.SpeechSynthesisOutputFormat.Raw16Khz16BitMonoPcm)
     synth = speechsdk.SpeechSynthesizer(speech_config=config, audio_config=None)

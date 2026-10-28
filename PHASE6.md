@@ -1,5 +1,10 @@
 # Phase 6 implementation and evaluation
 
+Historical report: the subsequent customer-satisfaction implementation replaces
+automatic language switching with a fixed session language and adds the supplied
+company questionnaire. See [current setup and verification](CUSTOMER_SURVEY.md).
+The measurements below describe the original Phase 6 prompt and demo questionnaire.
+
 Implemented 28 October 2026. No deployment performed. The feature is off by default.
 
 ## Repository baseline

@@ -56,6 +56,7 @@ class Synth:
 class AgentTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.env = patch.dict(os.environ, {
+            "DEFAULT_LANGUAGE": "ar",
             "AZURE_SPEECH_KEY": "test", "AZURE_SPEECH_REGION": "uaenorth",
             "AZURE_TTS_VOICE_AR": "ar-OM-AyshaNeural",
             "AZURE_TTS_VOICE_EN": "en-US-JennyNeural",
@@ -136,7 +137,7 @@ class AgentTests(unittest.IsolatedAsyncioTestCase):
             await anext(generator)
             await anext(generator)
             newer = Synth.instances[-1]
-            self.assertIn("en-US-JennyNeural", newer.text)
+            self.assertIn("ar-OM-AyshaNeural", newer.text)  # Fixed session voice, even for English input.
             await generator.aclose()
             self.assertTrue(newer.stopped)
 

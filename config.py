@@ -27,4 +27,4 @@ def load_settings(*, service=None):
         raise ValueError("SURVEY_CONVERSATION_MANAGER must be true or false")
     if os.getenv("SURVEY_CONVERSATION_MANAGER", "false").lower() == "true":
         from survey import Questionnaire
-        Questionnaire.load(os.getenv("SURVEY_QUESTIONNAIRE", "questionnaire.example.json"))
+        Questionnaire.load(os.getenv("SURVEY_QUESTIONNAIRE", "questionnaire.customer-satisfaction.ar.json"))

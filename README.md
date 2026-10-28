@@ -5,10 +5,12 @@ Foundry GPT-4.1-mini → streaming Azure TTS → SmallWebRTC → browser speaker
 
 No Daily account, key, hosted room, browser SDK, or Pipecat Cloud runtime is used.
 
-An optional LLM-driven survey manager is available behind
-`SURVEY_CONVERSATION_MANAGER=true` (default: `false`). See
-[Phase 6 implementation and evaluation](PHASE6.md) for questionnaire configuration,
-the decision schema, validation rules, test results and remaining model failures.
+The supplied `.env.example` enables the Arabic customer-satisfaction survey from
+شركة تنقيب البيانات, with explicit consent and eight questions. Speech stays in
+`DEFAULT_LANGUAGE` for the entire call, using `ar-SA-HamedNeural` for Arabic.
+See [customer survey setup and verification](CUSTOMER_SURVEY.md).
+`SURVEY_CONVERSATION_MANAGER=false` selects the legacy assistant for comparison.
+The [Phase 6 report](PHASE6.md) records the original implementation and benchmark.
 
 Azure provider implementations, credentials, deployment, prompt, voice selection, and
 VAD settings were preserved during the transport migration. Pipecat remains 0.0.72.
@@ -234,7 +236,9 @@ Arabic, English, repeated turns, silence, interruption during speech, mute/unmut
 tab close, network loss and remote HTTPS on the actual target network.
 
 Recognition remains fixed at the existing `AZURE_STT_LANGUAGE` (ar-OM default). TTS
-selects the existing Arabic/English voices based on response script. For reliable
+uses the voice for the configured `DEFAULT_LANGUAGE` throughout the session; customer
+speech never changes the output language. Arabic defaults to `ar-SA-HamedNeural`.
+The SSML locale follows the configured voice, independently of the STT locale. For reliable
 English STT, run a test process with `AZURE_STT_LANGUAGE=en-US`; automatic bilingual
 recognition was not added because provider/language settings were explicitly preserved.
 

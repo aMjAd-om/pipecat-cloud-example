@@ -168,7 +168,7 @@ class SurveyTests(unittest.IsolatedAsyncioTestCase):
         m = manager()
         await m.turn("1", "three, maybe four", model(decision(intent="clarify",
             answer_status="needs_clarification", action="stay", answer_value=None,
-            spoken_response="Do you mean a rating of four?")))
+            spoken_response="هل تقصد تقييماً قدره أربعة؟")))
         self.assertIsNotNone(m.pending_clarification)
         r = await m.turn("2", "Yes, four", model(decision()))
         self.assertTrue(r.committed)

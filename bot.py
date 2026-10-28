@@ -18,9 +18,11 @@ from azure_services import StreamingAzureSTT, StreamingAzureTTS, FoundryLLMServi
 from config import load_settings
 from diagnostics import safe_diagnostic
 from instrumentation import LatencyProbe, TurnTiming
+from language_policy import LanguageLockedResponse
 
 
 async def main(connection, *, stop_event=None):
+    language = os.getenv("DEFAULT_LANGUAGE", "ar")
     timing = TurnTiming()
     transport = SmallWebRTCTransport(connection, TransportParams(
         audio_in_enabled=True, audio_out_enabled=True,
@@ -36,9 +38,11 @@ async def main(connection, *, stop_event=None):
     )
     tts = StreamingAzureTTS(timing=timing)
     context = OpenAILLMContext([{"role": "system", "content": (
-        "You are a friendly bilingual Arabic and English voice assistant. "
-        "Begin with a brief Arabic greeting and introduce yourself. "
-        "Reply in Arabic unless the customer speaks or requests English. "
+        "You are a friendly voice assistant. "
+        "The session language is fixed to " + language + ". "
+        "Always speak ONLY that language, even if the customer speaks another "
+        "language or requests switching. Understand their input without mirroring it. "
+        "Begin with a brief greeting in the configured language and introduce yourself. "
         "Use one or two short sentences, plain spoken text, no markdown. "
         "Do not repeat a greeting after the first turn."
     )}])
@@ -49,8 +53,8 @@ async def main(connection, *, stop_event=None):
         from survey import ConversationManager, Questionnaire
         from survey_voice import FoundryDecisionClient, SurveyConversationProcessor
         manager = ConversationManager(
-            Questionnaire.load(os.getenv("SURVEY_QUESTIONNAIRE", "questionnaire.example.json")),
-            language=os.getenv("DEFAULT_LANGUAGE", "ar"),
+            Questionnaire.load(os.getenv("SURVEY_QUESTIONNAIRE", "questionnaire.customer-satisfaction.ar.json")),
+            language=language,
         )
         survey_processor = SurveyConversationProcessor(manager, FoundryDecisionClient(
             llm._client, os.environ["AZURE_OPENAI_DEPLOYMENT"]), timing)
@@ -59,6 +63,7 @@ async def main(connection, *, stop_event=None):
     pipeline = Pipeline([
         transport.input(), rtvi, LatencyProbe(timing, "input"), stt,
         *conversation,
+        LanguageLockedResponse(language),
         LatencyProbe(timing, "llm"), tts, LatencyProbe(timing, "audio"),
         transport.output(), *([] if survey_processor else [aggregator.assistant()]),
     ])

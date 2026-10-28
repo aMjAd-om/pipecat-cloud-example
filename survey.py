@@ -16,7 +16,9 @@ class Question(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True, frozen=True)
     id: str = Field(min_length=1, max_length=80)
     text: str = Field(min_length=1, max_length=1000)
-    kind: Literal["rating", "text"]
+    kind: Literal["rating", "text", "choice", "consent", "conditional_text"]
+    choices: tuple[str, ...] = ()
+    insufficient_answers: tuple[str, ...] = ()
     minimum: int = 1
     maximum: int = 5
     max_length: int = Field(default=1000, ge=1, le=4000)
@@ -27,6 +29,11 @@ class Question(BaseModel):
     def bounds(self):
         if self.minimum > self.maximum:
             raise ValueError("minimum exceeds maximum")
+        if self.kind in ("choice", "consent") and (
+                len(self.choices) < 2 or len(set(self.choices)) != len(self.choices)):
+            raise ValueError("choice questions need at least two unique choices")
+        if self.kind == "consent" and (self.optional or self.choices != ("نعم", "لا")):
+            raise ValueError("consent must be required with choices نعم / لا")
         return self
 
 
@@ -34,11 +41,16 @@ class Questionnaire(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True, frozen=True)
     questions: tuple[Question, ...] = Field(min_length=1, max_length=100)
     authorized_information: str = Field(default="", max_length=8000)
+    introduction: str = Field(default="", max_length=4000)
+    closing: str = Field(default="", max_length=4000)
+    cancellation_response: str = Field(default="", max_length=1000)
 
     @model_validator(mode="after")
     def unique_ids(self):
         if len({q.id for q in self.questions}) != len(self.questions):
             raise ValueError("duplicate question IDs")
+        if any(q.kind == "consent" for q in self.questions[1:]):
+            raise ValueError("consent can only be the first question")
         return self
 
     @classmethod
@@ -58,13 +70,15 @@ class Decision(BaseModel):
 
 
 PROMPT = """1. Mode Settings
-You are a concise, warm bilingual survey caller. The LLM decides conversational
-meaning; Python owns all state. Reply in the customer's language, Arabic by default.
+You are a concise, warm survey caller. The LLM decides conversational
+meaning; Python owns all state. The configured output_language is fixed for the
+ENTIRE session. Always speak that language, regardless of the customer's language,
+English words, mixed speech, or requests to switch. Understand multilingual input
+but never mirror its language. With output_language=ar, spoken_response must be
+entirely Arabic, with no English words, romanized Arabic, or English quotations.
 Use natural Omani Arabic where suitable, not exaggerated dialect. Understand mixed
 Arabic/English, Arabic digits, زين، واجد، ما عليه، شوي، لحظة، عيد، كمل.
 These expressions are contextual: زين or ممتاز alone is NOT an explicit numeric rating.
-The latest customer's English speech requires an English spoken_response even if
-the questionnaire is Arabic. preferred_language is only a fallback for bare digits.
 
 2. Global Rules
 Only the CURRENT question may receive an answer. Speech after a question is not
@@ -73,6 +87,30 @@ question bounds. 'I have 3 children' is not a rating. Conflicting numbers requir
 clarification unless the customer clearly corrects themselves ('3, actually 4').
 For text, accept relevant feedback about the question's stated topic, including
 short negative feedback; unrelated requests and personal facts are not feedback.
+For choice questions, map an unambiguous answer to exactly one string from choices.
+English choice labels are valid INPUT and never require translation clarification:
+excellent -> ممتازة, good -> جيدة, acceptable -> مقبولة, poor/bad -> سيئة;
+recommendation yes -> نعم, no -> لا, maybe -> ربما. Respond only in output_language.
+For consent, accept explicit permission only as answer/valid/next_question with
+answer_value="نعم". Refusal means cancel/not_answered/finish with null value.
+Understand English permission too: 'Yes, please begin', 'Yes, let's begin', 'go
+ahead' and 'yes' explicitly allow starting. Normalize them to answer_value="نعم"
+and acknowledge ONLY in the locked output language. Do not demand Arabic input.
+Ambiguous permission requires clarification; a rating or unrelated fact is NOT consent.
+Until consent is granted, do not collect any survey answers. Consent cannot be skipped.
+For conditional_text about problems: a clear denial is valid (answer_value="لا").
+A described relevant problem is valid immediately, even if yes and details are in
+one turn. A bare yes, 'واجهت مشكلة', or another insufficient_answer must use
+clarify/needs_clarification/stay, null value, and ask for the nature of the problem.
+The problem MUST concern obtaining or using the surveyed service (for example,
+waiting, application forms, the service portal, staff, or an explicitly linked issue).
+Merely saying 'I have a problem' about a personal car, device, family, or another
+topic does NOT establish service relevance. If that relation is absent or uncertain,
+stay with null value and ask whether/how the issue relates to obtaining the service.
+The service type has not been supplied: NEVER assume it is car repair, phone repair,
+or another business simply because the customer mentions a car or device problem.
+Use history to understand the explanation on the follow-up turn without repeating
+the yes/no question. Do not accept mere confirmation as the problem description.
 Use history for explicit follow-ups and corrections, but never borrow a past answer
 for a new question without explicit confirmation for this question. A bare yes can
 confirm a specific pending clarification, never invent a rating from vague praise.
@@ -163,9 +201,11 @@ class Result:
 
 class ConversationManager:
     def __init__(self, questionnaire: Questionnaire, *, session_id=None, language="ar"):
+        if language not in ("ar", "en"):
+            raise ValueError("language must be ar or en")
         self.questionnaire = questionnaire
         self.session_id = session_id or str(uuid4())
-        self.language = language
+        self._language = language
         self.version = 0
         self.index = 0
         self.answers = {}
@@ -181,12 +221,18 @@ class ConversationManager:
         self.metrics = deque(maxlen=100)  # Counts/timing only, no text or answers.
 
     @property
+    def language(self):
+        return self._language
+
+    @property
     def question(self):
         return self.questionnaire.questions[self.index]
 
     def snapshot(self):
         state = dict(session_id=self.session_id, state_version=self.version,
-                     preferred_language=self.language,
+                     output_language=self.language,
+                     consent_granted=(self.questionnaire.questions[0].kind != "consent" or
+                         self.answers.get(self.questionnaire.questions[0].id) == "نعم"),
                      current_question=self.question.model_dump(),
                      completed_answers=dict(self.answers), skipped=sorted(self.skipped),
                      paused=self.paused, completed=self.completed, cancelled=self.cancelled,
@@ -210,6 +256,8 @@ class ConversationManager:
         return en if self.language == "en" else ar
 
     def opening(self):
+        if self.questionnaire.introduction:
+            return self.questionnaire.introduction + "\n\n" + self.question.text
         return self._say("مرحباً، أنا مساعد آلي للاستبيان.",
                          "Hello, I'm an automated survey assistant.") + " " + self.question.text
 
@@ -236,14 +284,25 @@ class ConversationManager:
             return "paused"
         if d.intent == "correct_previous":
             if (self.paused or d.action != "repeat" or d.answer_status != "not_answered"
-                    or not isinstance(d.answer_value, str) or d.answer_value not in self.answers):
+                    or not isinstance(d.answer_value, str) or d.answer_value not in self.answers
+                    or any(q.id == d.answer_value and q.kind == "consent"
+                           for q in self.questionnaire.questions)):
                 return "invalid_correction"
             return None
         if d.action == "next_question":
             if self.paused or d.intent != "answer" or d.answer_status != "valid":
                 return "invalid_commit"
             q, value = self.question, d.answer_value
-            if q.kind == "rating":
+            consent = self.questionnaire.questions[0]
+            if q.kind != "consent" and consent.kind == "consent" and self.answers.get(consent.id) != "نعم":
+                return "consent_required"
+            if q.kind == "consent":
+                if value != "نعم":
+                    return "consent_required"
+            elif q.kind == "choice":
+                if not isinstance(value, str) or value not in q.choices:
+                    return "choice_constraint"
+            elif q.kind == "rating":
                 if type(value) is not int or not q.minimum <= value <= q.maximum:
                     return "rating_constraint"
                 # Relevance belongs to the LLM. Require a rating token in this turn
@@ -257,6 +316,10 @@ class ConversationManager:
                     return "rating_not_explicit"
             elif not isinstance(value, str) or not value.strip() or len(value) > q.max_length:
                 return "text_constraint"
+            elif q.kind == "conditional_text":
+                insufficient = {normalize_answer(v) for v in q.insufficient_answers}
+                if normalize_answer(value) in insufficient or normalize_answer(utterance) in insufficient:
+                    return "details_required"
             return None
         if d.answer_value is not None or d.answer_status == "valid":
             return "unexpected_answer"
@@ -291,7 +354,15 @@ class ConversationManager:
             d = decision
             committed = False
             text = d.spoken_response.strip()
-            self.pending_clarification = (text if d.answer_status == "needs_clarification" else None)
+            from language_policy import speech_matches_language
+            if not speech_matches_language(text, self.language):
+                text = (self._say("شكراً لك.", "Thank you.") if d.action != "stay" else
+                        self._say("خلّنا نكمل بالعربية.", "Let's continue in English.") +
+                        " " + self.question.text)
+                # Replacing a foreign clarification loses its specific proposal.
+                self.pending_clarification = None
+            else:
+                self.pending_clarification = (text if d.answer_status == "needs_clarification" else None)
             if d.intent == "correct_previous":
                 self.completed = False
                 self.revising_question_id = d.answer_value
@@ -314,8 +385,11 @@ class ConversationManager:
                     text += " " + self.question.text
                 else:
                     self.completed = True
-                    text += " " + self._say("اكتمل الاستبيان، شكراً لوقتك.",
-                                             "The survey is complete. Thank you for your time.")
+                    if self.questionnaire.closing:
+                        text = self.questionnaire.closing
+                    else:
+                        text += " " + self._say("اكتمل الاستبيان، شكراً لوقتك.",
+                                                 "The survey is complete. Thank you for your time.")
             elif d.action == "pause":
                 self.paused = True
             elif d.action == "resume":
@@ -325,8 +399,9 @@ class ConversationManager:
                 text += " " + self.question.text
             elif d.action == "finish":
                 self.cancelled = True
-                text = self._say("تم إلغاء الاستبيان. شكراً لوقتك.",
-                                 "The survey is cancelled. Thank you for your time.")
+                text = self.questionnaire.cancellation_response or self._say(
+                    "تم إلغاء الاستبيان. شكراً لوقتك.",
+                    "The survey is cancelled. Thank you for your time.")
             self._remember(utterance, text)
             return Result(True, text, "accepted", committed)
 
@@ -340,10 +415,6 @@ class ConversationManager:
                 return Result(False, self._say("يرجى بدء جلسة جديدة.",
                              "Please start a new session."), "turn_limit")
             self._seen.add(event_id)
-            if re.search(r"[\u0600-\u06ff]", utterance):
-                self.language = "ar"
-            elif re.search(r"[A-Za-z]", utterance):
-                self.language = "en"
             snap = snapshot or self.snapshot()
         if not utterance.strip() or len(utterance) > 2000:
             return self._reject("transcript_bounds")
@@ -353,7 +424,8 @@ class ConversationManager:
         try:
             q = next(q for q in self.questionnaire.questions if q.id == snap.question_id)
             messages = [*snap.messages, {"role": "system", "content":
-                "For this turn spoken_response language: " + self.language +
+                "LOCKED output language for the entire call: " + self.language +
+                ". Do not switch language or quote words in another language." +
                 ". Active question (this overrides any older question in history): " +
                 q.model_dump_json() +
                 ". Use this question kind only and return the exact action/status contract."},
@@ -398,3 +470,8 @@ def rating_tokens(text):
     tokens = re.findall(r"\d+|[^\W\d_]+", text)
     return [int(t) if t.isdecimal() else words[t] for t in tokens
             if t.isdecimal() or t in words]
+
+
+def normalize_answer(text):
+    text = re.sub(r"[\u064b-\u065f\u0670]", "", text).lower()
+    return " ".join(re.findall(r"[^\W_]+", text))

@@ -5,7 +5,6 @@ Recognition remains active during silence and bot speech; Pipecat VAD owns turns
 """
 import asyncio
 import os
-import re
 import time
 from collections import deque
 from xml.sax.saxutils import escape
@@ -182,14 +181,6 @@ class StreamingAzureSTT(STTService):
         await super().cancel(frame)
 
 
-def text_language(text, fallback="ar"):
-    if re.search(r"[\u0600-\u06ff\u0750-\u077f\u08a0-\u08ff]", text):
-        return "ar"
-    if re.search(r"[a-zA-Z]", text):
-        return "en"
-    return fallback
-
-
 class StreamingAzureTTS(AzureBaseTTSService):
     """Use native sentence aggregation/SSML, with isolated streaming SDK requests.
 
@@ -205,10 +196,9 @@ class StreamingAzureTTS(AzureBaseTTSService):
         self._language = os.getenv("DEFAULT_LANGUAGE", "ar")
 
     async def run_tts(self, text):
-        self._language = text_language(text, self._language)
-        self._voice_id = os.getenv("AZURE_TTS_VOICE_AR", "ar-OM-AyshaNeural") \
+        self._voice_id = os.getenv("AZURE_TTS_VOICE_AR", "ar-SA-HamedNeural") \
             if self._language == "ar" else os.getenv("AZURE_TTS_VOICE_EN", "en-US-JennyNeural")
-        self._settings["language"] = "ar-OM" if self._language == "ar" else "en-US"
+        self._settings["language"] = "-".join(self._voice_id.split("-")[:2])
         config = speechsdk.SpeechConfig(subscription=self._api_key, region=self._region)
         config.set_speech_synthesis_output_format(sample_rate_to_output_format(self.sample_rate))
         synth = speechsdk.SpeechSynthesizer(speech_config=config, audio_config=None)
