@@ -13,7 +13,7 @@ from uuid import uuid4
 from starlette.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
-from asterisk_transport import AsteriskPeer, PCMResampler, media_start
+from asterisk_transport import AsteriskPeer, PCMResampler, TelephoneAudioStats, media_start
 from telephony_server import create_telephony_app, telephone_listener
 
 
@@ -36,6 +36,20 @@ class Wire:
 
 
 class ProtocolTests(unittest.IsolatedAsyncioTestCase):
+    def test_audio_diagnostics_keep_only_counters_and_window_levels(self):
+        stats = TelephoneAudioStats()
+        stats.received(b"\x00\x10" * 320)
+        stats.received(bytes(640))
+        stats.forwarded_frames = 2
+        snapshot = stats.snapshot()
+        self.assertEqual(snapshot["rx_frames"], 2)
+        self.assertEqual(snapshot["forwarded_frames"], 2)
+        self.assertEqual(snapshot["peak"], 4096)
+        self.assertEqual(snapshot["rms_max"], 4096)
+        self.assertEqual(stats.snapshot()["peak"], 0)
+        self.assertFalse(any(isinstance(value, (bytes, bytearray))
+                             for value in vars(stats).values()))
+
     def test_handshake_requires_negotiated_pcm_and_ids(self):
         event = start_event()
         self.assertEqual(media_start(json.dumps(event)), event)

@@ -15,6 +15,14 @@ def speech_matches_language(text, language):
     return not re.search(r"[\u0620-\u064a\u066e-\u06d3\u0750-\u077f\u08a0-\u08c9]", text)
 
 
+def safe_spoken_text(text, language, *, overflow=False):
+    """Shared final speech boundary for voice calls and the local chat preview."""
+    if not overflow and speech_matches_language(text, language):
+        return text
+    return ("خلّنا نكمل بالعربية. ممكن تعيد إجابتك؟" if language == "ar" else
+            "Let's continue in English. Could you repeat your answer?")
+
+
 class LanguageLockedResponse(FrameProcessor):
     """Buffer a response so a later English token cannot follow spoken Arabic.
 
@@ -29,10 +37,7 @@ class LanguageLockedResponse(FrameProcessor):
         self._overflow = False
 
     def _safe(self, text):
-        if not self._overflow and speech_matches_language(text, self.language):
-            return text
-        return ("خلّنا نكمل بالعربية. ممكن تعيد إجابتك؟" if self.language == "ar" else
-                "Let's continue in English. Could you repeat your answer?")
+        return safe_spoken_text(text, self.language, overflow=self._overflow)
 
     async def process_frame(self, frame, direction):
         await super().process_frame(frame, direction)

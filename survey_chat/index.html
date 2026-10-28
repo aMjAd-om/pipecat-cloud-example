@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Survey conversation lab</title><link rel="stylesheet" href="/chat.css">
+  <script src="/chat.js" defer></script>
+</head>
+<body>
+  <header><div><span class="eyebrow">LOCAL PREVIEW</span><h1>Survey conversation lab</h1>
+    <p>Type what the customer would say. Read exactly what the agent would speak.</p></div>
+    <div class="tools"><button id="restart">New conversation</button><button id="export" disabled>Export chat</button></div>
+  </header>
+  <main>
+    <section class="conversation" aria-label="Conversation">
+      <div class="session-bar"><span id="connection" role="status">Connecting…</span><span id="configuration"></span></div>
+      <div id="messages" role="log" aria-live="polite"></div>
+      <div id="suggestions" aria-label="Example customer replies">
+        <button data-reply="نعم، تفضل نبدأ">نعم، تفضل نبدأ</button>
+        <button data-reply="من أي شركة تتصلون؟">من أي شركة تتصلون؟</button>
+        <button data-reply="ممكن تعيد السؤال؟">ممكن تعيد السؤال؟</button>
+        <button data-reply="لحظة، وقف الاستبيان شوي">لحظة، وقف الاستبيان شوي</button>
+      </div>
+      <form id="composer"><label for="reply">Customer reply</label>
+        <textarea id="reply" dir="auto" maxlength="2000" rows="3" placeholder="اكتب رد العميل هنا…" required></textarea>
+        <div class="compose-actions"><small>Enter to send · Shift+Enter for a new line</small>
+          <button id="interrupt" type="button" disabled>Simulate interruption</button><button id="send" type="submit" disabled>Send reply</button></div>
+      </form>
+      <p class="note">Text only. Uses your configured Azure model; each reply may incur LLM usage. No microphone or speech synthesis.</p>
+      <p id="error" role="alert"></p>
+    </section>
+    <aside aria-label="Survey inspector">
+      <section class="card"><h2>Current question</h2><div id="question" dir="auto">—</div><div id="state"></div></section>
+      <section class="card"><h2>Accepted answers</h2><div id="answers" class="empty">No answers accepted yet.</div></section>
+      <section class="card"><h2>Last decision</h2><div id="result" class="empty">Send a reply to inspect the result.</div><pre id="decision"></pre></section>
+    </aside>
+  </main>
+</body>
+</html>

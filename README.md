@@ -12,6 +12,11 @@ See [customer survey setup and verification](CUSTOMER_SURVEY.md).
 `SURVEY_CONVERSATION_MANAGER=false` selects the legacy assistant for comparison.
 The [Phase 6 report](PHASE6.md) records the original implementation and benchmark.
 
+To tune replies without making telephone calls, run
+`uv run --frozen python survey_chat.py` and open **http://127.0.0.1:7862**.
+The [local conversation lab](SURVEY_CHAT.md) uses the same survey decisions and
+shows accepted answers, validation, and exportable traces without STT/TTS.
+
 For Linphone/Asterisk telephone calls, see [Asterisk setup](ASTERISK_SETUP.md),
 especially step 7 to enable extension `2000`, and the
 [adapter implementation report](ASTERISK_REPORT.md). Telephone media is an opt-in

@@ -266,6 +266,20 @@ Dial `6000`, or the full URI `sip:6000@UBUNTU_IP`. You should hear your own voic
 
 If registration succeeds but echo is silent, inspect routing and the RTP firewall before changing the AI. Temporary SIP/RTP debug logs can contain identifiers and network details; disable debugging after diagnosis.
 
+If the AI speaks but cannot hear the caller, test `6000` again first. A connected echo application alone does not establish audio reception. With the echo call active and while speaking, run from `~/voice-pbx`:
+
+```bash
+docker compose exec asterisk asterisk -rx 'pjsip show channelstats'
+docker compose exec asterisk asterisk -rx 'rtp show settings'
+sudo ufw status verbose
+```
+
+The receive packet counter should increase as the phone sends audio. The configured RTP range should be `10000` through `10100`, matching the LAN firewall allowance. Zero received packets points toward phone microphone/media settings, an incorrect advertised media address, or routing/firewall issues. Packet reception alone does not prove the received audio contains speech.
+
+Check Android's microphone permission for Linphone, the global microphone-access control, and the in-call mute button. Confirm Linphone's media encryption/ICE/STUN/TURN settings match the private LAN pilot above. Do not disable the server firewall or change the working browser TURN configuration to diagnose this.
+
+For adapter-level diagnostics, update/rebuild the agent and temporarily set `TELEPHONY_AUDIO_DIAGNOSTICS=true` in the application `.env`. Every five seconds it reports incoming/forwarded/outgoing PCM frame counts, peak/RMS levels, VAD speech-start count, and input queue size. It records no audio or transcript contents. `rx_frames=0` means no PCM reached the adapter; increasing receive counts with zero levels indicates silence. Disable the flag after diagnosis. No speech-detection threshold or Azure integration is changed by enabling it.
+
 ## 7. Enable the Pipecat telephone adapter
 
 After updating the application checkout on Ubuntu with the adapter code, edit the application's `.env` (not the Asterisk SIP configuration):

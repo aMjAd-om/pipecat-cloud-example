@@ -24,7 +24,7 @@ Run the offline suite with:
 uv run --frozen python -m unittest discover -s tests -v
 ```
 
-After the outbound connection-name correction, the suite contains 64 tests: 63 passed and one Linux-specific signal test was skipped on Windows. Twelve telephone tests cover:
+After the outbound connection-name correction and audio diagnostics, the suite contains 65 tests: 64 passed and one Linux-specific signal test was skipped on Windows. Thirteen telephone tests cover:
 
 - Strict media startup validation and rejection before any Azure request.
 - Both outbound client-name IDs (`pipecat`) and incoming UUID IDs, matching Asterisk 22.11.0's source. Simultaneous outbound calls use the same connection name and distinct channel IDs.
@@ -37,6 +37,7 @@ After the outbound connection-name correction, the suite contains 64 tests: 63 p
 - Playback pacing and playback-drain acknowledgement.
 - Actual localhost Uvicorn HTTP/WebSocket transport with mixed text and binary messages, shutdown of an active call, port release, and unchanged process signal handler.
 - A conflicting listener port fails startup explicitly.
+- Audio diagnostics retain only frame counters and level summaries, clear window levels between reports, and retain no PCM buffers.
 
 The existing survey, browser session, Azure adapter, and closed-ICE-transport regressions also pass. The telephone implementation introduces no extra model request per finalized customer transcript. Tests use simulated Azure responses and make no billable Azure calls; they do not measure actual model token usage or real telephone response latency.
 
@@ -60,3 +61,9 @@ The first deployed call reached the media WebSocket but was rejected before pipe
 The adapter now accepts bounded connection names as well as UUIDs, and keys active calls by the unique `channel_id`. Duplicate connection names alone do not reject simultaneous outbound calls. The fixtures now default to the deployed outbound form, rather than generating UUIDs for every call.
 
 Handshake errors now log a static reason code and stage; other failures log stage and exception class without exception text, raw control messages, channel variables, or customer speech. The deployed log alone did not expose the precise exception, so the UUID mismatch is a verified code defect consistent with that failure; the next real call must confirm the fix on Ubuntu.
+
+## Incoming audio investigation
+
+After the handshake correction, the user confirmed the AI greeting plays, but caller speech does not interrupt it, and extension `6000` also returns no audible echo. The provided log shows a receive failure exactly 30 seconds after STT startup with no recognition events. This is consistent with the adapter's receive timeout and a missing incoming-media path, rather than evidence of an LLM or survey issue. It does not yet identify the exact phone/network fault.
+
+Added a first-PCM receipt marker, exception-class diagnostics for receive failures, and opt-in five-second audio counters/levels via `TELEPHONY_AUDIO_DIAGNOSTICS`. The next deployment checks are phone microphone access and active-call Asterisk RTP reception, actual RTP port range, and LAN firewall rules. Speech-detection thresholds and Azure provider implementations are unchanged; the incoming-audio issue remains unresolved pending those checks.

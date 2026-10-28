@@ -2,12 +2,16 @@
 import asyncio
 import audioop
 import json
+import os
 import re
 import time
 from contextlib import suppress
 
+from loguru import logger
+
 from pipecat.audio.vad.silero import SileroVADAnalyzer
-from pipecat.frames.frames import InputAudioRawFrame, StartInterruptionFrame, TTSAudioRawFrame, TTSStoppedFrame
+from pipecat.frames.frames import InputAudioRawFrame, StartInterruptionFrame, TTSAudioRawFrame, TTSStoppedFrame, UserStartedSpeakingFrame
+from pipecat.processors.frame_processor import FrameDirection
 from pipecat.transports.base_input import BaseInputTransport
 from pipecat.transports.base_output import BaseOutputTransport
 from pipecat.transports.base_transport import BaseTransport, TransportParams
@@ -59,6 +63,25 @@ class PCMResampler:
         return result
 
 
+class TelephoneAudioStats:
+    """Counters and level summaries only; never retain audio or transcripts."""
+    def __init__(self):
+        self.rx_frames = self.forwarded_frames = self.out_frames = self.vad_starts = 0
+        self.peak = self.rms_max = 0
+
+    def received(self, data):
+        self.rx_frames += 1
+        self.peak = max(self.peak, audioop.max(data, 2))
+        self.rms_max = max(self.rms_max, audioop.rms(data, 2))
+
+    def snapshot(self):
+        result = dict(rx_frames=self.rx_frames, forwarded_frames=self.forwarded_frames,
+                      out_frames=self.out_frames, vad_starts=self.vad_starts,
+                      peak=self.peak, rms_max=self.rms_max)
+        self.peak = self.rms_max = 0
+        return result
+
+
 class AsteriskPeer:
     def __init__(self, websocket, start, stop_event):
         self.ws, self.start, self.stop_event = websocket, start, stop_event
@@ -69,6 +92,7 @@ class AsteriskPeer:
         self.closed = False
         self.epoch = 0
         self.next_send = 0.0
+        self.stats = TelephoneAudioStats()
 
     async def command(self, command):
         async with self.lock:
@@ -85,6 +109,7 @@ class AsteriskPeer:
                 return
             self.drained.clear()
             await asyncio.wait_for(self.ws.send_bytes(data), 2)
+            self.stats.out_frames += 1
             self.next_send = max(self.next_send, time.monotonic()) + len(data) / 32000
 
     async def flush(self):
@@ -132,13 +157,37 @@ class AsteriskInput(BaseInputTransport):
         super().__init__(params)
         self.owner = owner
         self.receiver = None
+        self.diagnostic_task = None
 
     async def start(self, frame):
         await super().start(frame)
         await self.set_transport_ready(frame)
         self._audio_in_queue._maxsize = 100
         self.receiver = self.create_task(self.receive())
+        if os.getenv("TELEPHONY_AUDIO_DIAGNOSTICS", "false").lower() == "true":
+            self.diagnostic_task = self.create_task(self.report_audio())
         await self.owner._call_event_handler("on_client_connected", self.owner.peer)
+
+    async def report_audio(self):
+        while True:
+            await asyncio.sleep(5)
+            stats = self.owner.peer.stats.snapshot()
+            logger.info("Telephone audio: rx_frames={} forwarded_frames={} out_frames={} "
+                        "peak={} rms_max={} vad_starts={} input_queue={}",
+                        stats["rx_frames"], stats["forwarded_frames"], stats["out_frames"],
+                        stats["peak"], stats["rms_max"], stats["vad_starts"],
+                        self._audio_in_queue.qsize())
+
+    async def push_frame(self, frame, direction=FrameDirection.DOWNSTREAM):
+        await super().push_frame(frame, direction)
+        if isinstance(frame, InputAudioRawFrame) and direction == FrameDirection.DOWNSTREAM:
+            self.owner.peer.stats.forwarded_frames += 1
+
+    async def _handle_user_interruption(self, frame):
+        if isinstance(frame, UserStartedSpeakingFrame):
+            self.owner.peer.stats.vad_starts += 1
+            logger.info("Telephone caller speech detected")
+        await super()._handle_user_interruption(frame)
 
     async def receive(self):
         peer = self.owner.peer
@@ -151,6 +200,9 @@ class AsteriskInput(BaseInputTransport):
                     data = message["bytes"]
                     if not data or len(data) > 6400 or len(data) % 2:
                         raise ValueError("Invalid PCM message")
+                    self.owner.peer.stats.received(data)
+                    if self.owner.peer.stats.rx_frames == 1:
+                        logger.info("Telephone incoming PCM received; bytes={}", len(data))
                     # Bound buffering and fail a stalled pipeline instead of
                     # silently dropping speech or blocking control indefinitely.
                     await asyncio.wait_for(self.push_audio_frame(
@@ -159,10 +211,9 @@ class AsteriskInput(BaseInputTransport):
                     peer.event(message["text"])
         except asyncio.CancelledError:
             raise
-        except Exception:
+        except Exception as exc:
             # Never log incoming control payloads, audio, or customer speech.
-            from loguru import logger
-            logger.warning("Telephone media disconnected or invalid")
+            logger.warning("Telephone media disconnected or invalid; type={}", type(exc).__name__)
         finally:
             peer.stop_event.set()
 
@@ -171,11 +222,17 @@ class AsteriskInput(BaseInputTransport):
         if self.receiver:
             await self.cancel_task(self.receiver)
             self.receiver = None
+        if self.diagnostic_task:
+            await self.cancel_task(self.diagnostic_task)
+            self.diagnostic_task = None
 
     async def cleanup(self):
         if self.receiver:
             await self.cancel_task(self.receiver)
             self.receiver = None
+        if self.diagnostic_task:
+            await self.cancel_task(self.diagnostic_task)
+            self.diagnostic_task = None
         await super().cleanup()
 
 
