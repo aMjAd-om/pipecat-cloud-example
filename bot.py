@@ -1,4 +1,4 @@
-"""One isolated Azure pipeline per native SmallWebRTC connection."""
+"""One isolated Azure survey pipeline per browser or telephone connection."""
 import asyncio
 import os
 import sys
@@ -21,10 +21,11 @@ from instrumentation import LatencyProbe, TurnTiming
 from language_policy import LanguageLockedResponse
 
 
-async def main(connection, *, stop_event=None):
+async def main(connection, *, stop_event=None, transport=None):
+    telephone = transport is not None
     language = os.getenv("DEFAULT_LANGUAGE", "ar")
     timing = TurnTiming()
-    transport = SmallWebRTCTransport(connection, TransportParams(
+    transport = transport or SmallWebRTCTransport(connection, TransportParams(
         audio_in_enabled=True, audio_out_enabled=True,
         audio_in_sample_rate=16000, audio_out_sample_rate=24000,
         vad_analyzer=SileroVADAnalyzer(),
@@ -47,7 +48,7 @@ async def main(connection, *, stop_event=None):
         "Do not repeat a greeting after the first turn."
     )}])
     aggregator = llm.create_context_aggregator(context)
-    rtvi = RTVIProcessor(transport=transport)
+    rtvi = None if telephone else RTVIProcessor(transport=transport)
     survey_processor = None
     if os.getenv("SURVEY_CONVERSATION_MANAGER", "false").lower() == "true":
         from survey import ConversationManager, Questionnaire
@@ -61,7 +62,7 @@ async def main(connection, *, stop_event=None):
     conversation = ([survey_processor] if survey_processor else
                     [aggregator.user(), LatencyProbe(timing, "request"), llm])
     pipeline = Pipeline([
-        transport.input(), rtvi, LatencyProbe(timing, "input"), stt,
+        transport.input(), *([rtvi] if rtvi else []), LatencyProbe(timing, "input"), stt,
         *conversation,
         LanguageLockedResponse(language),
         LatencyProbe(timing, "llm"), tts, LatencyProbe(timing, "audio"),
@@ -78,14 +79,17 @@ async def main(connection, *, stop_event=None):
     async def report_error(_task, frame):
         logger.error("Pipeline service error; fatal={}; {}", frame.fatal,
                      safe_diagnostic(frame.error))
-        await rtvi.send_error("A voice service failed. Please stop and restart the conversation.")
+        if rtvi:
+            await rtvi.send_error("A voice service failed. Please stop and restart the conversation.")
+        elif frame.fatal and stop_event:
+            stop_event.set()
 
     greeted = False
 
-    @rtvi.event_handler("on_client_ready")
-    async def greet(_rtvi):
+    async def greet(*_args):
         nonlocal greeted
-        await rtvi.set_bot_ready()
+        if rtvi:
+            await rtvi.set_bot_ready()
         if not greeted:
             greeted = True
             if survey_processor:
@@ -93,6 +97,11 @@ async def main(connection, *, stop_event=None):
                 await task.queue_frames([SurveyOpeningFrame()])
             else:
                 await task.queue_frames([aggregator.user().get_context_frame()])
+
+    if rtvi:
+        rtvi.add_event_handler("on_client_ready", greet)
+    else:
+        transport.add_event_handler("on_client_connected", greet)
 
     @transport.event_handler("on_client_disconnected")
     async def leave(_transport, _connection):
@@ -116,8 +125,12 @@ async def main(connection, *, stop_event=None):
             stopping.cancel()
             await asyncio.gather(stopping, return_exceptions=True)
         if not running.done():
-            running.cancel()
-            await asyncio.gather(running, return_exceptions=True)
+            await task.cancel()
+            try:
+                await asyncio.wait_for(asyncio.shield(running), 5)
+            except (asyncio.TimeoutError, asyncio.CancelledError):
+                running.cancel()
+                await asyncio.gather(running, return_exceptions=True)
         await stt.close()
         await tts.close()
         await llm._client.close()
@@ -135,7 +148,8 @@ def configure_logging():
     # Third-party debug messages can contain transcripts or request bodies.
     logger.add(sys.stderr, level=os.getenv("LOG_LEVEL", "INFO"),
                filter=lambda r: r["name"] in {
-                   "__main__", "bot", "server", "azure_services", "instrumentation"
+                   "__main__", "bot", "server", "azure_services", "instrumentation",
+                   "asterisk_transport", "telephony_server"
                })
 
 

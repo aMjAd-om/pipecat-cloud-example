@@ -185,7 +185,9 @@ def create_app(manager=None, *, validate_settings=True):
             configured_ice_servers()
         janitor = asyncio.create_task(sessions.reap())
         try:
-            yield
+            from telephony_server import telephone_listener
+            async with telephone_listener():
+                yield
         finally:
             janitor.cancel()
             with suppress(asyncio.CancelledError):

@@ -12,6 +12,12 @@ See [customer survey setup and verification](CUSTOMER_SURVEY.md).
 `SURVEY_CONVERSATION_MANAGER=false` selects the legacy assistant for comparison.
 The [Phase 6 report](PHASE6.md) records the original implementation and benchmark.
 
+For Linphone/Asterisk telephone calls, see [Asterisk setup](ASTERISK_SETUP.md),
+especially step 7 to enable extension `2000`, and the
+[adapter implementation report](ASTERISK_REPORT.md). Telephone media is an opt-in
+loopback listener (`TELEPHONY_ENABLED=false` by default); Ubuntu Docker host
+networking connects it to Asterisk while the browser service keeps its existing path.
+
 Azure provider implementations, credentials, deployment, prompt, voice selection, and
 VAD settings were preserved during the transport migration. Pipecat remains 0.0.72.
 There was no repository frontend before this change; the previous browser page was
