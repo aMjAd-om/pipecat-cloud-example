@@ -6,6 +6,11 @@ questions in order, and closing. Company facts are restricted to the supplied
 description of شركة تنقيب البيانات. Unknown prices, contacts, service-provider
 identity and privacy policies must not be invented.
 
+For the response-style changes addressing caller concerns, concise rating
+clarification and repeated questions, see [conversation tuning](CONVERSATION_TUNING.md)
+and its live synthetic evaluation. The service being rated is still unspecified;
+the survey executor must not be presented as its service provider.
+
 ## Configuration
 
 The working copy's `.env` and `.env.example` select:
