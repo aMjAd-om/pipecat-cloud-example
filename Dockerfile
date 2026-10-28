@@ -14,6 +14,7 @@ WORKDIR /app
 COPY pyproject.toml uv.lock README.md ./
 RUN uv sync --frozen --no-dev --no-install-project
 COPY bot.py main.py server.py config.py azure_services.py instrumentation.py verify_services.py diagnostics.py ./
+COPY tts_providers.py ./
 COPY ice_lifecycle.py language_policy.py survey.py survey_voice.py questionnaire.example.json questionnaire.customer-satisfaction.ar.json ./
 COPY asterisk_transport.py telephony_server.py ./
 COPY survey_chat.py ./

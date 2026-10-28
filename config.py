@@ -12,6 +12,13 @@ def load_settings(*, service=None):
         required = ["AZURE_SPEECH_KEY", "AZURE_SPEECH_REGION"]
     elif service == "llm":
         required = ["AZURE_OPENAI_API_KEY", "AZURE_OPENAI_BASE_URL", "AZURE_OPENAI_DEPLOYMENT"]
+    if service in (None, "tts"):
+        from tts_providers import tts_provider, cartesia_settings
+        if tts_provider() == "cartesia":
+            cartesia_settings()
+            if service == "tts":
+                required = []
+            required.append("CARTESIA_API_KEY")
     missing = [key for key in required if not os.getenv(key) or
                os.environ[key].startswith("your_")]
     if missing:

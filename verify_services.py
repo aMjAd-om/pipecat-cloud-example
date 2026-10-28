@@ -1,4 +1,4 @@
-"""Independent live Azure checks; no transport session and no extra pipeline LLM call."""
+"""Independent live provider checks; no transport session or extra pipeline LLM call."""
 import argparse
 import asyncio
 import os
@@ -42,6 +42,25 @@ def speech_config():
 
 
 async def tts_check():
+    from tts_providers import tts_provider, create_tts
+    if tts_provider() == "cartesia":
+        from pipecat.frames.frames import ErrorFrame, TTSAudioRawFrame
+        tts = create_tts()
+        start, first, size = time.monotonic(), None, 0
+        text = "السلام عليكم، كيف حالك اليوم؟" if os.getenv("DEFAULT_LANGUAGE", "ar") == "ar" else "Hello, how are you today?"
+        try:
+            async for frame in tts.run_tts(text):
+                if isinstance(frame, ErrorFrame):
+                    raise RuntimeError(frame.error)
+                if isinstance(frame, TTSAudioRawFrame):
+                    first = first or time.monotonic()
+                    size += len(frame.audio)
+            if not size:
+                raise RuntimeError("No streaming audio")
+            print(f"TTS cartesia PASS bytes={size} first_audio_ms={(first-start)*1000:.1f}")
+        finally:
+            await tts.close()
+        return
     loop = asyncio.get_running_loop()
     for language, text, default in (("AR", "السلام عليكم", "ar-SA-HamedNeural"),
                                      ("EN", "Hello, how are you?", "en-US-JennyNeural")):

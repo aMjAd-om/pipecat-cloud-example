@@ -1,4 +1,4 @@
-"""One isolated Azure survey pipeline per browser or telephone connection."""
+"""One isolated survey pipeline per browser or telephone connection."""
 import asyncio
 import os
 import sys
@@ -14,7 +14,8 @@ from pipecat.transports.base_transport import TransportParams
 from pipecat.transports.network.small_webrtc import SmallWebRTCTransport
 from pipecat.processors.frameworks.rtvi import RTVIProcessor
 
-from azure_services import StreamingAzureSTT, StreamingAzureTTS, FoundryLLMService
+from azure_services import StreamingAzureSTT, FoundryLLMService
+from tts_providers import create_tts
 from config import load_settings
 from diagnostics import safe_diagnostic
 from instrumentation import LatencyProbe, TurnTiming
@@ -37,7 +38,7 @@ async def main(connection, *, stop_event=None, transport=None):
         model=os.environ["AZURE_OPENAI_DEPLOYMENT"],
         params=OpenAILLMService.InputParams(temperature=0.2, max_tokens=150),
     )
-    tts = StreamingAzureTTS(timing=timing)
+    tts = create_tts(timing=timing)
     context = OpenAILLMContext([{"role": "system", "content": (
         "You are a friendly voice assistant. "
         "The session language is fixed to " + language + ". "
@@ -149,7 +150,7 @@ def configure_logging():
     logger.add(sys.stderr, level=os.getenv("LOG_LEVEL", "INFO"),
                filter=lambda r: r["name"] in {
                    "__main__", "bot", "server", "azure_services", "instrumentation",
-                   "asterisk_transport", "telephony_server"
+                   "asterisk_transport", "telephony_server", "tts_providers"
                })
 
 

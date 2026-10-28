@@ -314,7 +314,7 @@ class EndpointTests(unittest.TestCase):
                 "AZURE_OPENAI_API_KEY": "test", "AZURE_OPENAI_BASE_URL": "https://example.com/openai/v1/",
                 "AZURE_OPENAI_DEPLOYMENT": "gpt-4.1-mini"}), \
              patch.object(bot, "StreamingAzureSTT", STT), \
-             patch.object(bot, "StreamingAzureTTS", TTS), \
+             patch.object(bot, "create_tts", TTS), \
              patch.object(bot, "FoundryLLMService", LLM), \
              patch("survey_voice.FoundryDecisionClient", DecisionClient):
             with self.client(bot.main) as client:
