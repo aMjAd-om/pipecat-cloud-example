@@ -18,7 +18,8 @@ from telephony_server import create_telephony_app, telephone_listener
 
 
 def start_event(channel=None):
-    return dict(event="MEDIA_START", connection_id=str(uuid4()),
+    # Mirrors Asterisk 22.11 outbound clients: config name shared by calls.
+    return dict(event="MEDIA_START", connection_id="pipecat",
                 channel_id=channel or str(uuid4()), format="slin16",
                 optimal_frame_size=640, ptime=20)
 
@@ -40,9 +41,14 @@ class ProtocolTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(media_start(json.dumps(event)), event)
         for changes in ({"format": "ulaw"}, {"optimal_frame_size": 960},
                         {"ptime": 40}, {"channel_id": ""},
-                        {"connection_id": "not-a-uuid"}, {"event": "DTMF_END"}):
+                        {"connection_id": "bad\nname"}, {"event": "DTMF_END"}):
             with self.subTest(changes=changes), self.assertRaises((ValueError, TypeError)):
                 media_start(json.dumps({**event, **changes}))
+
+    def test_incoming_uuid_and_outbound_config_name_are_both_valid(self):
+        for identity in ("pipecat", str(uuid4())):
+            event = {**start_event(), "connection_id": identity}
+            self.assertEqual(media_start(json.dumps(event))["connection_id"], identity)
 
     async def test_flush_invalidates_writer_waiting_for_flow_control(self):
         ws, stop = Wire(), asyncio.Event()

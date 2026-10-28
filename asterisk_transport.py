@@ -2,9 +2,9 @@
 import asyncio
 import audioop
 import json
+import re
 import time
 from contextlib import suppress
-from uuid import UUID
 
 from pipecat.audio.vad.silero import SileroVADAnalyzer
 from pipecat.frames.frames import InputAudioRawFrame, StartInterruptionFrame, TTSAudioRawFrame, TTSStoppedFrame
@@ -13,25 +13,33 @@ from pipecat.transports.base_output import BaseOutputTransport
 from pipecat.transports.base_transport import BaseTransport, TransportParams
 
 
+class MediaProtocolError(ValueError):
+    """Static diagnostic code, safe to log without including caller payloads."""
+
+
 def media_start(text):
     """Validate the negotiated wire format before allocating any Azure services."""
     if not isinstance(text, str) or len(text) > 4096:
-        raise ValueError("Expected a small MEDIA_START JSON event")
-    event = json.loads(text)
+        raise MediaProtocolError("handshake_size")
+    try:
+        event = json.loads(text)
+    except json.JSONDecodeError:
+        raise MediaProtocolError("handshake_not_json") from None
     if not isinstance(event, dict) or event.get("event") != "MEDIA_START":
-        raise ValueError("Expected MEDIA_START")
+        raise MediaProtocolError("expected_media_start")
     identity = event.get("connection_id")
-    if not isinstance(identity, str):
-        raise ValueError("Missing connection_id")
-    UUID(identity)
+    # Outbound Dial(WebSocket/pipecat/...) sends the configured client name.
+    # Only Asterisk's INCOMING connection mode generates a UUID here.
+    if not isinstance(identity, str) or not re.fullmatch(r"[A-Za-z0-9_.:-]{1,200}", identity):
+        raise MediaProtocolError("invalid_connection_id")
     channel = event.get("channel_id")
     if not isinstance(channel, str) or not 1 <= len(channel) <= 200:
-        raise ValueError("Missing channel_id")
+        raise MediaProtocolError("invalid_channel_id")
     if (event.get("format") != "slin16"
             or type(event.get("optimal_frame_size")) is not int
             or event["optimal_frame_size"] != 640
             or event.get("ptime", 20) != 20):
-        raise ValueError("Require slin16 mono, 16 kHz, 20 ms / 640 bytes")
+        raise MediaProtocolError("require_slin16_20ms_640bytes")
     return event
 
 

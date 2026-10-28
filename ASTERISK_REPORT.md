@@ -9,7 +9,7 @@ The user's Linphone `1001` call already reached extension `6000` and executed As
 ## Changes
 
 - `asterisk_transport.py`: mixed binary/audio and JSON/control handling; strict startup format validation; bounded input/output queues; stateful 24-to-16 kHz resampling; 20 ms PCM framing with padded tails; playback pacing and flow control; interruption flushing with stale-writer invalidation; drain acknowledgement for normal pipeline endings.
-- `telephony_server.py`: loopback-only listener, WebSocket `media` subprotocol, five-second handshake timeout, duplicate channel/connection rejection, isolated peers, configurable call count/duration, and graceful listener shutdown. It rejects browser-origin requests and is not added to the public browser application routes.
+- `telephony_server.py`: loopback-only listener, WebSocket `media` subprotocol, five-second handshake timeout, duplicate channel rejection, isolated peers, configurable call count/duration, and graceful listener shutdown. Outbound calls may share a configured connection name. It rejects browser-origin requests and is not added to the public browser application routes.
 - `bot.py`: shared pipeline accepts the telephone transport; starts its greeting without browser RTVI; preserves the survey feature flag, language lock, Azure services, and model. Cancellation waits for pipeline cleanup before closing resources.
 - `server.py`, `Dockerfile`, `.env.example`, `config.py`: opt-in listener lifecycle, container packaging, documented environment settings, and feature-flag validation.
 - `tests/test_telephony.py`: protocol and integration regressions using simulated Azure services.
@@ -24,9 +24,10 @@ Run the offline suite with:
 uv run --frozen python -m unittest discover -s tests -v
 ```
 
-The final suite contains 63 tests: 62 passed and one Linux-specific signal test was skipped on Windows. Eleven telephone tests cover:
+After the outbound connection-name correction, the suite contains 64 tests: 63 passed and one Linux-specific signal test was skipped on Windows. Twelve telephone tests cover:
 
 - Strict media startup validation and rejection before any Azure request.
+- Both outbound client-name IDs (`pipecat`) and incoming UUID IDs, matching Asterisk 22.11.0's source. Simultaneous outbound calls use the same connection name and distinct channel IDs.
 - Duplicate call IDs, call count limits, isolated simultaneous peers, and call-duration expiry.
 - Private-origin/subprotocol checks and malformed audio cleanup.
 - Real Pipecat pipeline startup, automatic Arabic survey greeting, two sequential answers advancing consent and overall rating, then a fresh call greeting again.
@@ -51,3 +52,11 @@ The existing survey, browser session, Azure adapter, and closed-ICE-transport re
 8. The adapter deliberately uses some pinned Pipecat base-transport internals for queue limits, resampling, and interrupted buffer cleanup. A Pipecat upgrade requires rerunning these integration tests. Python remains restricted to 3.11/3.12; the stateful PCM resampler uses `audioop`.
 
 No known failing automated regression remains. Live telephone quality and Ubuntu deployment remain the acceptance gate.
+
+## First live handshake failure and correction
+
+The first deployed call reached the media WebSocket but was rejected before pipeline startup. Investigation found an incorrect UUID-only assumption in our adapter: for outbound `Dial(WebSocket/pipecat/...)`, Asterisk 22.11.0 sets `connection_id` to the configured name `pipecat`. Only incoming-mode channels generate a UUID at that step. This is verified in upstream [`websocket_new`](https://github.com/asterisk/asterisk/blob/22.11.0/channels/chan_websocket.c), which also supplies that ID to `MEDIA_START`.
+
+The adapter now accepts bounded connection names as well as UUIDs, and keys active calls by the unique `channel_id`. Duplicate connection names alone do not reject simultaneous outbound calls. The fixtures now default to the deployed outbound form, rather than generating UUIDs for every call.
+
+Handshake errors now log a static reason code and stage; other failures log stage and exception class without exception text, raw control messages, channel variables, or customer speech. The deployed log alone did not expose the precise exception, so the UUID mismatch is a verified code defect consistent with that failure; the next real call must confirm the fix on Ubuntu.

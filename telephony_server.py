@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager, nullcontext, suppress
 from fastapi import FastAPI, WebSocket
 from loguru import logger
 
-from asterisk_transport import AsteriskPeer, AsteriskTransport, media_start
+from asterisk_transport import AsteriskPeer, AsteriskTransport, MediaProtocolError, media_start
 
 
 def create_telephony_app(*, pipeline=None):
@@ -44,29 +44,35 @@ def create_telephony_app(*, pipeline=None):
         await ws.accept(subprotocol="media")
         peer = None
         key = None
+        stage = "handshake"
         try:
             text = await asyncio.wait_for(ws.receive_text(), 5)
             start = media_start(text)
             # Channel ID prevents two socket connections owning one call.
             key = start["channel_id"]
-            if key in calls or any(p.start["connection_id"] == start["connection_id"]
-                                   for p in calls.values()) or len(calls) >= limit:
+            # Outbound calls all share a configured connection_id ("pipecat").
+            # The Asterisk channel_id, not the client config name, owns the call.
+            if key in calls or len(calls) >= limit:
                 await ws.close(code=1013)
                 return
             stop = asyncio.Event()
             peer = AsteriskPeer(ws, start, stop)
             calls[key] = peer
             logger.info("Telephone call started; active={}", len(calls))
+            stage = "transport_startup"
             transport = AsteriskTransport(peer)
             timer = asyncio.get_running_loop().call_later(duration, stop.set)
             try:
+                stage = "pipeline"
                 await pipeline(None, stop_event=stop, transport=transport)
             finally:
                 timer.cancel()
         except asyncio.CancelledError:
             raise
-        except Exception:
-            logger.warning("Telephone call failed or media handshake rejected")
+        except Exception as exc:
+            reason = str(exc) if isinstance(exc, MediaProtocolError) else "see_stage"
+            logger.warning("Telephone call rejected or failed; stage={} type={} reason={}",
+                           stage, type(exc).__name__, reason)
         finally:
             if peer:
                 try:
