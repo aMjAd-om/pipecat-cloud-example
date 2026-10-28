@@ -80,6 +80,19 @@ docker compose -f docker-compose.ubuntu.yml up -d --build agent
 
 No automatic deployment or lab restart was performed by this change.
 
+## Repeated rating acknowledgements
+
+Removed the affirmative example that anchored replies to “وصلت وجهة نظرك”. The
+prompt now explicitly discourages “وصلت تقييمك” and similar receipt announcements,
+asks the model to consult recent assistant replies, and distinguishes minimal
+rating transitions from brief responses to substantive feedback. The turn reminder
+reinforces this guidance, and the live style evaluator flags these stock phrases.
+This is a prompt change; answer validation, state transitions, and exact questionnaire
+wording are unchanged. No live model evaluation was run for this adjustment, so
+variation in generated replies still needs review in the chat lab.
+
+The five existing conversation-style regression tests pass for this adjustment.
+
 ## Remaining limits
 
 The actual service name and provider are still unspecified. The agent can acknowledge that honestly but cannot identify the service until the questionnaire's authorized information is populated with that fact. It also cannot establish who authorized contact or where a number originated without verified information supplied by the operator.

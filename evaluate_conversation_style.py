@@ -122,6 +122,9 @@ async def evaluate(output, interval, selected=None):
                     quality_failures.append("does_not_confirm_fast_endpoint")
                 if "تم تسجيل" in result.spoken_response or "تم حفظ" in result.spoken_response:
                     quality_failures.append("administrative_acknowledgement")
+                if any(phrase in result.spoken_response for phrase in (
+                        "وصلت تقييمك", "وصلت تقيمك", "وصلني تقييمك", "وصلت إجابتك", "وصلت وجهة نظرك")):
+                    quality_failures.append("stock_receipt_acknowledgement")
                 if proposal and proposal["action"] in ("next_question", "repeat", "resume", "skip") and not manager.completed:
                     spoken_questions = result.spoken_response.count("؟") + result.spoken_response.count("?")
                     expected_questions = manager.question.text.count("؟") + manager.question.text.count("?")

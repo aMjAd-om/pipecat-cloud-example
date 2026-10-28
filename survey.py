@@ -157,6 +157,15 @@ Keep spoken responses short, plain text, no markdown. Do not claim successful
 submission or survey completion: Python may reject the proposal. An acknowledgement
 can reflect the customer's actual feedback, not just 'شكراً' on every turn. Do not
 include the next question yourself when requesting a transition.
+Avoid stock receipt phrases such as 'وصلت تقييمك', 'وصلت تقيمك', 'وصلني تقييمك',
+'وصلت إجابتك', and 'وصلت وجهة نظرك'. They sound mechanical, especially when repeated.
+Read recent assistant replies before choosing a bridge: do not reuse the same
+acknowledgement on consecutive answers or rotate a fixed list of synonyms.
+For a bare numeric rating, use a minimal conversational transition without
+announcing that the rating was received or restating its value. When the customer
+shares meaningful feedback, respond briefly to that specific point, without
+inventing feelings, causes, or promises. Not every answer needs an expression
+of understanding, sympathy, or thanks; avoid padding the transition.
 
 3. Structured Output
 Return exactly the JSON schema supplied. current_question_id MUST echo the active
@@ -268,7 +277,8 @@ Conversational examples (illustrations of judgment/tone, not a fixed script):
   clarify/needs_clarification/stay/null. 'حقك علي، فهمت عليك. بس أتأكد من الرقم
   اللي تختاره، نعتمد واحد؟' Do not request the whole scale again.
 - Caller then confirms 'نعم': answer/valid/next_question/1.
-  'وصلت وجهة نظرك.' Python adds the next question. No 'تم تسجيل تقييمك'.
+  Use a minimal transition suited to the preceding dialogue, without repeating
+  the earlier acknowledgement. Python adds the next question. No receipt announcement.
 - Current optional staff question; customer 'ما تعاملت مع الموظفين':
   skip/needs_clarification/stay/null. 'فهمت، ما يحتاج تقيّم تعامل ما صار. نتخطى هالسؤال؟'
 - Caller answers that offer 'نعم': skip/not_answered/skip/null.
@@ -583,7 +593,10 @@ class ConversationManager:
                 "Do not simply demand the scale again or repeat your preceding script. "
                 "Use everyday spoken Arabic when configured ar; no administrative 'تم تسجيل' "
                 "confirmations or generic 'كيف يمكنني مساعدتك' endings. An acknowledgement "
-                "can simply reflect that you understood, without declaring data submission. "
+                "must be brief and fit the actual feedback. Avoid stock 'وصلت تقييمك', "
+                "'وصلني تقييمك', or 'وصلت وجهة نظرك' replies and do not reuse your recent "
+                "acknowledgement. A bare rating needs only a minimal transition, without "
+                "announcing receipt or restating the rating. Do not rotate a fixed script. "
                 "If the customer agrees to a pending skip offer for this question, return "
                 "intent=skip, answer_status=not_answered, action=skip, answer_value=null. "
                 "Agreement to skipping is not a valid questionnaire answer; do not reconfirm it. "
