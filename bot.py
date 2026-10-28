@@ -44,11 +44,23 @@ async def main(connection, *, stop_event=None):
     )}])
     aggregator = llm.create_context_aggregator(context)
     rtvi = RTVIProcessor(transport=transport)
+    survey_processor = None
+    if os.getenv("SURVEY_CONVERSATION_MANAGER", "false").lower() == "true":
+        from survey import ConversationManager, Questionnaire
+        from survey_voice import FoundryDecisionClient, SurveyConversationProcessor
+        manager = ConversationManager(
+            Questionnaire.load(os.getenv("SURVEY_QUESTIONNAIRE", "questionnaire.example.json")),
+            language=os.getenv("DEFAULT_LANGUAGE", "ar"),
+        )
+        survey_processor = SurveyConversationProcessor(manager, FoundryDecisionClient(
+            llm._client, os.environ["AZURE_OPENAI_DEPLOYMENT"]), timing)
+    conversation = ([survey_processor] if survey_processor else
+                    [aggregator.user(), LatencyProbe(timing, "request"), llm])
     pipeline = Pipeline([
         transport.input(), rtvi, LatencyProbe(timing, "input"), stt,
-        aggregator.user(), LatencyProbe(timing, "request"), llm,
+        *conversation,
         LatencyProbe(timing, "llm"), tts, LatencyProbe(timing, "audio"),
-        transport.output(), aggregator.assistant(),
+        transport.output(), *([] if survey_processor else [aggregator.assistant()]),
     ])
     task = PipelineTask(pipeline, params=PipelineParams(
         audio_in_sample_rate=16000, audio_out_sample_rate=24000,
@@ -71,7 +83,11 @@ async def main(connection, *, stop_event=None):
         await rtvi.set_bot_ready()
         if not greeted:
             greeted = True
-            await task.queue_frames([aggregator.user().get_context_frame()])
+            if survey_processor:
+                from survey_voice import SurveyOpeningFrame
+                await task.queue_frames([SurveyOpeningFrame()])
+            else:
+                await task.queue_frames([aggregator.user().get_context_frame()])
 
     @transport.event_handler("on_client_disconnected")
     async def leave(_transport, _connection):
@@ -89,6 +105,8 @@ async def main(connection, *, stop_event=None):
                 await task.cancel()
         await running
     finally:
+        if survey_processor:
+            survey_processor.manager.clear()
         if stopping:
             stopping.cancel()
             await asyncio.gather(stopping, return_exceptions=True)

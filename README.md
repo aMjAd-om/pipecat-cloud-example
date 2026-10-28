@@ -4,6 +4,12 @@ Browser microphone → native Pipecat SmallWebRTC → continuous Azure Speech ST
 Foundry GPT-4.1-mini → streaming Azure TTS → SmallWebRTC → browser speaker.
 
 No Daily account, key, hosted room, browser SDK, or Pipecat Cloud runtime is used.
+
+An optional LLM-driven survey manager is available behind
+`SURVEY_CONVERSATION_MANAGER=true` (default: `false`). See
+[Phase 6 implementation and evaluation](PHASE6.md) for questionnaire configuration,
+the decision schema, validation rules, test results and remaining model failures.
+
 Azure provider implementations, credentials, deployment, prompt, voice selection, and
 VAD settings were preserved during the transport migration. Pipecat remains 0.0.72.
 There was no repository frontend before this change; the previous browser page was

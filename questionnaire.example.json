@@ -1,0 +1,20 @@
+{
+  "authorized_information": "This is a demonstration survey conducted by an automated assistant. No company-specific information has been provided.",
+  "questions": [
+    {
+      "id": "service_rating",
+      "text": "من واحد إلى خمسة، كيف تقيّم تجربتك مع الخدمة؟",
+      "kind": "rating",
+      "minimum": 1,
+      "maximum": 5,
+      "relevance": "An explicit rating of the customer's experience with the service."
+    },
+    {
+      "id": "service_feedback",
+      "text": "شو ممكن نحسّن في الخدمة؟",
+      "kind": "text",
+      "optional": true,
+      "relevance": "Feedback about improvements to the service; no improvements needed is also relevant."
+    }
+  ]
+}

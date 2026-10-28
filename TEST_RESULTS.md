@@ -48,3 +48,34 @@ is dropped. Rapid utterances can merge under native turn aggregation; latency st
 assumes one active turn. Daily remains a cloud transport. Synthesizers are created per
 sentence to isolate cancellation, which can add connection latency. The server handoff
 metric excludes WebRTC delivery and actual device playback.
+# ICE shutdown regression — 28 October 2026
+
+The reported `Transaction.__retry()` / `NoneType.sendto` traceback is reproduced
+with the installed aioice 0.10.2, real localhost UDP sockets, and Python's selector
+event loop (the Linux transport path, also exercised on Windows). Closing a socket
+with a pending STUN request leaves its retry timer active in the unpatched library.
+
+`ice_lifecycle.py` installs a narrow StunProtocol compatibility subclass before
+server sessions create any peers. It finishes pending transactions through
+aioice's existing `TransactionError` path when the local protocol closes or loses
+its transport. This lets the request's `finally` cancel its timer. A send guard also
+handles retries already ready to run before cleanup resumes. Normal STUN responses,
+live media sends, candidate gathering and the TURN adapter retain their existing
+behavior. No dependency files are edited or upgraded, and no event-loop exception
+filter is installed. The Docker image now includes the guard and survey runtime
+modules. This is a process-wide compatibility patch to the pinned aioice factory;
+rerun these tests when changing aioice/aiortc versions.
+
+The six new tests include an unpatched negative control that reproduces an
+`AttributeError`, the same real-socket scenario with the fix and no callback errors,
+unexpected socket loss, closure before `connection_lost`, successful request/data
+traffic, repeated close, installation through the actual candidate factory and TURN
+adapter compatibility. These tests use only loopback traffic. A deployed Ubuntu
+browser/TURN end-to-end test and container rebuild were not performed. No deployment
+was made; an already running image must be rebuilt and restarted to receive the fix.
+
+Final full-suite run: **39 tests run, 38 passed, 1 Linux-only signal test skipped**.
+
+Upstream interfaces reviewed:
+[StunProtocol close/send](https://github.com/aiortc/aioice/blob/0.10.2/src/aioice/ice.py),
+[Transaction retry/finally](https://github.com/aiortc/aioice/blob/0.10.2/src/aioice/stun.py).

@@ -23,6 +23,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from pipecat.transports.network.webrtc_connection import SmallWebRTCConnection, IceServer
 
 from bot import main as run_bot, configure_logging
+from ice_lifecycle import install_ice_lifecycle_guard
 
 
 def configured_ice_servers():
@@ -68,6 +69,7 @@ class Session:
 
 class Sessions:
     def __init__(self, *, pipeline=run_bot, connection_factory=SmallWebRTCConnection):
+        install_ice_lifecycle_guard()
         self.items = {}
         self.limit = int(os.getenv("MAX_SESSIONS", "4"))
         self.max_age = int(os.getenv("SESSION_MAX_SECONDS", "900"))
