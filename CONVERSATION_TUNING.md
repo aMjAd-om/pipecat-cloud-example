@@ -31,11 +31,27 @@ Live synthetic evaluation:
 uv run --frozen python evaluate_conversation_style.py --live
 ```
 
-This explicitly makes billable calls to the configured Foundry GPT-4.1-mini deployment. It exercises 27 turns: caller concerns, rating clarifications, repeated frustration, slow/fast endpoint confirmation, irrelevant numbers, ambiguous numbers, prompt injection, pause/resume, explicit correction, and normal consent/answer progression. Requests are paced by default. No customer audio or phone numbers are sent by this evaluator.
+This explicitly makes billable calls to the configured Foundry GPT-4.1-mini deployment. The original style suite exercises 27 turns: caller concerns, rating clarifications, repeated frustration, slow/fast endpoint confirmation, irrelevant numbers, ambiguous numbers, prompt injection, pause/resume, explicit correction, and normal consent/answer progression. Nine skip-confirmation turns have since been added (36 total when running every journey). Requests are paced by default. No customer audio or phone numbers are sent by this evaluator.
 
 Results, actual spoken text, proposed JSON, validation outcomes, latency and token counts are in [conversation_style_evaluation.json](conversation_style_evaluation.json). The `--journey` option can run a selected scenario without repeating the whole evaluation.
 
-Final results: 76 offline tests ran (75 passed, one platform-specific skip). All 27 live synthetic turns matched their expected actions/commit outcomes, with zero false commits, zero unexpected answer changes, and zero failures of the targeted wording checks. Median model-decision latency was 1,187 ms; usage was 125,342 prompt tokens and 1,425 completion tokens for the final run. Earlier iterative trials consumed additional tokens and are not included in these final-run totals. Latency excludes STT/TTS and is not an end-to-end voice latency measurement.
+Initial style-tuning results: 76 offline tests ran (75 passed, one platform-specific skip). All 27 live synthetic turns matched their expected actions/commit outcomes, with zero false commits, zero unexpected answer changes, and zero failures of the targeted wording checks. Median model-decision latency was 1,187 ms; usage was 125,342 prompt tokens and 1,425 completion tokens for that run. Earlier iterative trials consumed additional tokens and are not included in those totals. Latency excludes STT/TTS and is not an end-to-end voice latency measurement.
+
+## Follow-up: confirming a skip
+
+The caller reported a loop after answering “نعم” to “هل تفضل تخطي السؤال؟” on the optional employee question. The old contract had no explicit pending action offer: an answer-shaped decision for “نعم” could be rejected as an invalid employee choice and replay the question. The caller's exported decision JSON was not supplied, so the precise failed proposal was not observable; the contract gap was reproducible and is addressed here.
+
+An offer to skip now has a defined non-mutating decision: `intent=skip`, `answer_status=needs_clarification`, `action=stay`, `answer_value=null`. After accepting that proposal, Python stores `pending_confirmation` with action, current question ID, and the actually spoken offer. This metadata goes into the next model context and the text lab inspector.
+
+Agreement is interpreted by the LLM as `skip/not_answered/skip/null`, not a choice answer. Python still enforces optional-question constraints and version checks. It rejects a bare affirmative being committed as a questionnaire answer when a skip confirmation is pending—even for a question where “نعم” itself is a valid choice. Refusal, a new unrelated concern, transitions, rejection fallback, and session cleanup clear pending metadata as appropriate. Pending confirmation never follows the cursor into a later question.
+
+No new decision fields or enum values, keyword-based automatic skip execution, extra LLM requests, or transport changes were introduced. A targeted history example also teaches recovery when the caller already confirmed and asks why the skip was not performed.
+
+Five new offline tests cover the offer/confirmation flow, duplicate and stale transcripts, refusal/new concerns, required questions, unsafe answer-shaped confirmations, invalid offers, and cleanup. The current full suite runs 81 tests (80 pass, one platform-specific skip). The real-browser chat regression also passes a complete path through the employee question, pending offer display, “نعم”, and the next difficulties question without recording an employee answer.
+
+The targeted live results are in [skip_confirmation_evaluation.json](skip_confirmation_evaluation.json). They cover nine new skip turns plus four consent/rating regression turns. The first trial passed the new offer/yes flow but reconfirmed once when recovering from an old erroneous history; a more explicit recovery example then passed the isolated repair case ([trace](skip_confirmation_repair_evaluation.json)), followed by a repeat of the targeted suite.
+
+Final targeted run: 13/13 turns passed, with zero false commits, zero unexpected answer changes, and zero targeted wording failures. Median model-decision latency was 1,219 ms; the final run used 71,755 prompt tokens and 608 completion tokens. Those totals exclude the earlier trial and isolated repair check. No deployed chat or phone process was automatically restarted.
 
 Quality checks cover specific defects: pushing consent/current question during concern handling, failing to confirm a single endpoint, administrative acknowledgement phrases, and duplicate transition questions. These checks are limited heuristics, not an objective measure of natural conversation; human review of the recorded replies is still needed. Earlier tuning passes exposed continued consent pushing, formal acknowledgements, and one repeated-scale response. Those findings drove the final prompt and rendering changes.
 

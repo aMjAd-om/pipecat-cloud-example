@@ -1,0 +1,47 @@
+{
+  "summary": {
+    "planned": 1,
+    "evaluated": 1,
+    "correct": 1,
+    "false_commits": 0,
+    "unexpected_answer_changes": 0,
+    "quality_failures": 0,
+    "latency_p50_ms": 1234.0,
+    "prompt_tokens": 5686,
+    "completion_tokens": 42
+  },
+  "cases": [
+    {
+      "journey": "legacy_skip_repair",
+      "turn": 0,
+      "customer": "ليش ما تخطيت السؤال؟",
+      "question_id": "staff_experience",
+      "proposal": {
+        "intent": "skip",
+        "answer_status": "not_answered",
+        "answer_value": null,
+        "action": "skip",
+        "spoken_response": "معك حق، نتخطى السؤال.",
+        "current_question_id": "staff_experience"
+      },
+      "spoken_response": "معك حق، نتخطى السؤال. هل واجهتك أي صعوبات أو مشاكل أثناء حصولك على الخدمة؟\n\nإذا نعم، ممكن توضح لنا طبيعة المشكلة؟",
+      "accepted": true,
+      "committed": false,
+      "reason": "accepted",
+      "expected_action": "skip",
+      "correct": true,
+      "quality_failures": [],
+      "false_commit": false,
+      "unexpected_answer_change": false,
+      "metrics": {
+        "latency_ms": 1234.0,
+        "accepted": true,
+        "committed": false,
+        "reason": "accepted",
+        "prompt_tokens": 5686,
+        "completion_tokens": 42,
+        "total_tokens": 5728
+      }
+    }
+  ]
+}

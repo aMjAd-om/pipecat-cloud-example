@@ -54,8 +54,18 @@ try {
   await page.getByText("Ready for customer reply", {exact: true}).waitFor();
   assert.equal(await page.locator("#messages .bubble").count(), 1);
   assert.match(await page.locator("#answers").textContent(), /No answers/);
+  await send("نعم");
+  await send("أربعة");
+  await send("كانت الخدمة سريعة");
+  await send("أربعة");
+  assert.match(await page.locator("#question").textContent(), /الموظفين/);
+  await send("ما تعاملت مع الموظفين");
+  assert.match(await page.locator("#state").textContent(), /awaiting skip confirmation/);
+  await send("نعم");
+  assert.match(await page.locator("#question").textContent(), /صعوبات/);
+  assert.doesNotMatch(await page.locator("#answers").textContent(), /staff_experience/);
   assert.deepEqual(pageErrors, []);
-  console.log("PASS chat greeting, consent, off-topic, rating, pause/resume, safe rendering, export and reset");
+  console.log("PASS chat greeting, consent, off-topic, rating, pause/resume, safe rendering, export, reset and confirmed skip");
 } finally {
   if (browser) await browser.close();
   server.kill();

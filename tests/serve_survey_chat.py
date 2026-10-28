@@ -17,7 +17,15 @@ async def decide(messages):
     result = dict(intent="off_topic", answer_status="not_answered", answer_value=None,
                   action="stay", spoken_response="خلّنا نرجع للسؤال الحالي.",
                   current_question_id=state["current_question"]["id"])
-    if text == "نعم":
+    if text == "نعم" and (state.get("pending_confirmation") or {}).get("action") == "skip":
+        result.update(intent="skip", action="skip", spoken_response="حاضر.")
+    elif text == "ما تعاملت مع الموظفين":
+        result.update(intent="skip", answer_status="needs_clarification",
+                      action="stay", spoken_response="فهمت، نتخطى هالسؤال؟")
+    elif text == "كانت الخدمة سريعة":
+        result.update(intent="answer", answer_status="valid", answer_value=text,
+                      action="next_question", spoken_response="فهمت عليك.")
+    elif text == "نعم":
         result.update(intent="answer", answer_status="valid", answer_value="نعم",
                       action="next_question", spoken_response="شكراً لك.")
     elif text == "أربعة":

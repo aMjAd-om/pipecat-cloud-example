@@ -1,0 +1,431 @@
+{
+  "summary": {
+    "planned": 13,
+    "evaluated": 13,
+    "correct": 13,
+    "false_commits": 0,
+    "unexpected_answer_changes": 0,
+    "quality_failures": 0,
+    "latency_p50_ms": 1219.0,
+    "prompt_tokens": 71755,
+    "completion_tokens": 608
+  },
+  "cases": [
+    {
+      "journey": "endpoint_confirmation",
+      "turn": 0,
+      "customer": "بطيئة جدا",
+      "question_id": "speed_rating",
+      "proposal": {
+        "intent": "clarify",
+        "answer_status": "needs_clarification",
+        "answer_value": null,
+        "action": "stay",
+        "spoken_response": "واضح إن السرعة ما ناسبتك، تقصد نعتمد واحد؟",
+        "current_question_id": "speed_rating"
+      },
+      "spoken_response": "واضح إن السرعة ما ناسبتك، تقصد نعتمد واحد؟",
+      "accepted": true,
+      "committed": false,
+      "reason": "accepted",
+      "expected_action": "stay",
+      "correct": true,
+      "quality_failures": [],
+      "false_commit": false,
+      "unexpected_answer_change": false,
+      "metrics": {
+        "latency_ms": 1390.0,
+        "accepted": true,
+        "committed": false,
+        "reason": "accepted",
+        "prompt_tokens": 5348,
+        "completion_tokens": 50,
+        "total_tokens": 5398
+      }
+    },
+    {
+      "journey": "endpoint_confirmation",
+      "turn": 1,
+      "customer": "نعم",
+      "question_id": "speed_rating",
+      "proposal": {
+        "intent": "answer",
+        "answer_status": "valid",
+        "answer_value": 1,
+        "action": "next_question",
+        "spoken_response": "وصلت وجهة نظرك.",
+        "current_question_id": "speed_rating"
+      },
+      "spoken_response": "وصلت وجهة نظرك. كيف كانت تجربتك في التعامل مع الموظفين؟\n\nهل كانت ممتازة، جيدة، مقبولة، أم سيئة؟",
+      "accepted": true,
+      "committed": true,
+      "reason": "accepted",
+      "expected_action": "next_question",
+      "correct": true,
+      "quality_failures": [],
+      "false_commit": false,
+      "unexpected_answer_change": false,
+      "metrics": {
+        "latency_ms": 1219.0,
+        "accepted": true,
+        "committed": true,
+        "reason": "accepted",
+        "prompt_tokens": 5404,
+        "completion_tokens": 38,
+        "total_tokens": 5442
+      }
+    },
+    {
+      "journey": "normal_start",
+      "turn": 0,
+      "customer": "نعم تفضل نبدأ",
+      "question_id": "consent",
+      "proposal": {
+        "intent": "answer",
+        "answer_status": "valid",
+        "answer_value": "نعم",
+        "action": "next_question",
+        "spoken_response": "حاضر، نبدأ الاستبيان الآن.",
+        "current_question_id": "consent"
+      },
+      "spoken_response": "حاضر، نبدأ الاستبيان الآن. بشكل عام، كيف تقيّم تجربتك مع الخدمة؟\n\nمن واحد إلى خمسة، حيث واحد يعني غير راضٍ إطلاقاً، وخمسة يعني راضٍ جداً.",
+      "accepted": true,
+      "committed": true,
+      "reason": "accepted",
+      "expected_action": "next_question",
+      "correct": true,
+      "quality_failures": [],
+      "false_commit": false,
+      "unexpected_answer_change": false,
+      "metrics": {
+        "latency_ms": 1125.0,
+        "accepted": true,
+        "committed": true,
+        "reason": "accepted",
+        "prompt_tokens": 4878,
+        "completion_tokens": 41,
+        "total_tokens": 4919
+      }
+    },
+    {
+      "journey": "normal_start",
+      "turn": 1,
+      "customer": "خمسة",
+      "question_id": "overall_rating",
+      "proposal": {
+        "intent": "answer",
+        "answer_status": "valid",
+        "answer_value": 5,
+        "action": "next_question",
+        "spoken_response": "وصلت تقييمك خمسة.",
+        "current_question_id": "overall_rating"
+      },
+      "spoken_response": "وصلت تقييمك خمسة. شكراً لك.\n\nممكن تخبرني عن السبب الرئيسي اللي خلاك تعطي هذا التقييم؟",
+      "accepted": true,
+      "committed": true,
+      "reason": "accepted",
+      "expected_action": "next_question",
+      "correct": true,
+      "quality_failures": [],
+      "false_commit": false,
+      "unexpected_answer_change": false,
+      "metrics": {
+        "latency_ms": 1078.0,
+        "accepted": true,
+        "committed": true,
+        "reason": "accepted",
+        "prompt_tokens": 5118,
+        "completion_tokens": 37,
+        "total_tokens": 5155
+      }
+    },
+    {
+      "journey": "staff_skip_yes",
+      "turn": 0,
+      "customer": "ما تعاملت مع الموظفين",
+      "question_id": "staff_experience",
+      "proposal": {
+        "intent": "skip",
+        "answer_status": "needs_clarification",
+        "answer_value": null,
+        "action": "stay",
+        "spoken_response": "فهمت، ما تعاملت مع الموظفين. هل تفضل نتخطى هالسؤال؟",
+        "current_question_id": "staff_experience"
+      },
+      "spoken_response": "فهمت، ما تعاملت مع الموظفين. هل تفضل نتخطى هالسؤال؟",
+      "accepted": true,
+      "committed": false,
+      "reason": "accepted",
+      "expected_action": "stay",
+      "correct": true,
+      "quality_failures": [],
+      "false_commit": false,
+      "unexpected_answer_change": false,
+      "metrics": {
+        "latency_ms": 1234.0,
+        "accepted": true,
+        "committed": false,
+        "reason": "accepted",
+        "prompt_tokens": 5574,
+        "completion_tokens": 55,
+        "total_tokens": 5629
+      }
+    },
+    {
+      "journey": "staff_skip_yes",
+      "turn": 1,
+      "customer": "نعم",
+      "question_id": "staff_experience",
+      "proposal": {
+        "intent": "skip",
+        "answer_status": "not_answered",
+        "answer_value": null,
+        "action": "skip",
+        "spoken_response": "حاضر.",
+        "current_question_id": "staff_experience"
+      },
+      "spoken_response": "حاضر. هل واجهتك أي صعوبات أو مشاكل أثناء حصولك على الخدمة؟\n\nإذا نعم، ممكن توضح لنا طبيعة المشكلة؟",
+      "accepted": true,
+      "committed": false,
+      "reason": "accepted",
+      "expected_action": "skip",
+      "correct": true,
+      "quality_failures": [],
+      "false_commit": false,
+      "unexpected_answer_change": false,
+      "metrics": {
+        "latency_ms": 937.0,
+        "accepted": true,
+        "committed": false,
+        "reason": "accepted",
+        "prompt_tokens": 5679,
+        "completion_tokens": 36,
+        "total_tokens": 5715
+      }
+    },
+    {
+      "journey": "staff_skip_yes",
+      "turn": 2,
+      "customer": "نعم",
+      "question_id": "difficulties",
+      "proposal": {
+        "intent": "clarify",
+        "answer_status": "needs_clarification",
+        "answer_value": null,
+        "action": "stay",
+        "spoken_response": "ممكن توضح لنا طبيعة المشكلة اللي واجهتك أثناء حصولك على الخدمة؟",
+        "current_question_id": "difficulties"
+      },
+      "spoken_response": "ممكن توضح لنا طبيعة المشكلة اللي واجهتك أثناء حصولك على الخدمة؟",
+      "accepted": true,
+      "committed": false,
+      "reason": "accepted",
+      "expected_action": "stay",
+      "correct": true,
+      "quality_failures": [],
+      "false_commit": false,
+      "unexpected_answer_change": false,
+      "metrics": {
+        "latency_ms": 1250.0,
+        "accepted": true,
+        "committed": false,
+        "reason": "accepted",
+        "prompt_tokens": 5846,
+        "completion_tokens": 53,
+        "total_tokens": 5899
+      }
+    },
+    {
+      "journey": "staff_skip_omani",
+      "turn": 0,
+      "customer": "ما تعاملت مع الموظفين",
+      "question_id": "staff_experience",
+      "proposal": {
+        "intent": "skip",
+        "answer_status": "needs_clarification",
+        "answer_value": null,
+        "action": "stay",
+        "spoken_response": "فهمت، ما يحتاج تقيّم تعامل ما صار. نتخطى هالسؤال؟",
+        "current_question_id": "staff_experience"
+      },
+      "spoken_response": "فهمت، ما يحتاج تقيّم تعامل ما صار. نتخطى هالسؤال؟",
+      "accepted": true,
+      "committed": false,
+      "reason": "accepted",
+      "expected_action": "stay",
+      "correct": true,
+      "quality_failures": [],
+      "false_commit": false,
+      "unexpected_answer_change": false,
+      "metrics": {
+        "latency_ms": 1172.0,
+        "accepted": true,
+        "committed": false,
+        "reason": "accepted",
+        "prompt_tokens": 5573,
+        "completion_tokens": 54,
+        "total_tokens": 5627
+      }
+    },
+    {
+      "journey": "staff_skip_omani",
+      "turn": 1,
+      "customer": "هيه",
+      "question_id": "staff_experience",
+      "proposal": {
+        "intent": "skip",
+        "answer_status": "not_answered",
+        "answer_value": null,
+        "action": "skip",
+        "spoken_response": "حاضر.",
+        "current_question_id": "staff_experience"
+      },
+      "spoken_response": "حاضر. هل واجهتك أي صعوبات أو مشاكل أثناء حصولك على الخدمة؟\n\nإذا نعم، ممكن توضح لنا طبيعة المشكلة؟",
+      "accepted": true,
+      "committed": false,
+      "reason": "accepted",
+      "expected_action": "skip",
+      "correct": true,
+      "quality_failures": [],
+      "false_commit": false,
+      "unexpected_answer_change": false,
+      "metrics": {
+        "latency_ms": 1109.0,
+        "accepted": true,
+        "committed": false,
+        "reason": "accepted",
+        "prompt_tokens": 5675,
+        "completion_tokens": 36,
+        "total_tokens": 5711
+      }
+    },
+    {
+      "journey": "staff_skip_decline",
+      "turn": 0,
+      "customer": "ما تعاملت مع الموظفين",
+      "question_id": "staff_experience",
+      "proposal": {
+        "intent": "skip",
+        "answer_status": "needs_clarification",
+        "answer_value": null,
+        "action": "stay",
+        "spoken_response": "فهمت، ما يحتاج تقيّم تعامل ما صار. نتخطى هالسؤال؟",
+        "current_question_id": "staff_experience"
+      },
+      "spoken_response": "فهمت، ما يحتاج تقيّم تعامل ما صار. نتخطى هالسؤال؟",
+      "accepted": true,
+      "committed": false,
+      "reason": "accepted",
+      "expected_action": "stay",
+      "correct": true,
+      "quality_failures": [],
+      "false_commit": false,
+      "unexpected_answer_change": false,
+      "metrics": {
+        "latency_ms": 1328.0,
+        "accepted": true,
+        "committed": false,
+        "reason": "accepted",
+        "prompt_tokens": 5574,
+        "completion_tokens": 54,
+        "total_tokens": 5628
+      }
+    },
+    {
+      "journey": "staff_skip_decline",
+      "turn": 1,
+      "customer": "لا، لا تتخطى",
+      "question_id": "staff_experience",
+      "proposal": {
+        "intent": "clarify",
+        "answer_status": "needs_clarification",
+        "answer_value": null,
+        "action": "stay",
+        "spoken_response": "فهمت، تبي تقييم لتجربتك مع الموظفين. كيف كانت، ممتازة، جيدة، مقبولة، أو سيئة؟",
+        "current_question_id": "staff_experience"
+      },
+      "spoken_response": "فهمت، تبي تقييم لتجربتك مع الموظفين. كيف كانت، ممتازة، جيدة، مقبولة، أو سيئة؟",
+      "accepted": true,
+      "committed": false,
+      "reason": "accepted",
+      "expected_action": "stay",
+      "correct": true,
+      "quality_failures": [],
+      "false_commit": false,
+      "unexpected_answer_change": false,
+      "metrics": {
+        "latency_ms": 1531.0,
+        "accepted": true,
+        "committed": false,
+        "reason": "accepted",
+        "prompt_tokens": 5680,
+        "completion_tokens": 66,
+        "total_tokens": 5746
+      }
+    },
+    {
+      "journey": "staff_skip_decline",
+      "turn": 2,
+      "customer": "تذكرت، تعاملت مع موظف وكان تعامله جيد",
+      "question_id": "staff_experience",
+      "proposal": {
+        "intent": "answer",
+        "answer_status": "valid",
+        "answer_value": "جيدة",
+        "action": "next_question",
+        "spoken_response": "حصل، سجلت تقييمك لتعامل الموظف بأنه جيد.",
+        "current_question_id": "staff_experience"
+      },
+      "spoken_response": "حصل، سجلت تقييمك لتعامل الموظف بأنه جيد. هل واجهتك أي صعوبات أو مشاكل أثناء حصولك على الخدمة؟\n\nإذا نعم، ممكن توضح لنا طبيعة المشكلة؟",
+      "accepted": true,
+      "committed": true,
+      "reason": "accepted",
+      "expected_action": "next_question",
+      "correct": true,
+      "quality_failures": [],
+      "false_commit": false,
+      "unexpected_answer_change": false,
+      "metrics": {
+        "latency_ms": 1375.0,
+        "accepted": true,
+        "committed": true,
+        "reason": "accepted",
+        "prompt_tokens": 5720,
+        "completion_tokens": 47,
+        "total_tokens": 5767
+      }
+    },
+    {
+      "journey": "legacy_skip_repair",
+      "turn": 0,
+      "customer": "ليش ما تخطيت السؤال؟",
+      "question_id": "staff_experience",
+      "proposal": {
+        "intent": "skip",
+        "answer_status": "not_answered",
+        "answer_value": null,
+        "action": "skip",
+        "spoken_response": "معك حق، نتخطاه.",
+        "current_question_id": "staff_experience"
+      },
+      "spoken_response": "معك حق، نتخطاه. هل واجهتك أي صعوبات أو مشاكل أثناء حصولك على الخدمة؟\n\nإذا نعم، ممكن توضح لنا طبيعة المشكلة؟",
+      "accepted": true,
+      "committed": false,
+      "reason": "accepted",
+      "expected_action": "skip",
+      "correct": true,
+      "quality_failures": [],
+      "false_commit": false,
+      "unexpected_answer_change": false,
+      "metrics": {
+        "latency_ms": 1187.0,
+        "accepted": true,
+        "committed": false,
+        "reason": "accepted",
+        "prompt_tokens": 5686,
+        "completion_tokens": 41,
+        "total_tokens": 5727
+      }
+    }
+  ]
+}

@@ -59,6 +59,23 @@ JOURNEYS = [
         ("نعم تفضل نبدأ", "next_question", "نعم"),
         ("خمسة", "next_question", 5),
     ]),
+    ("staff_skip_yes", 4, [
+        ("ما تعاملت مع الموظفين", "stay", None),
+        ("نعم", "skip", None),
+        ("نعم", "stay", None),
+    ]),
+    ("staff_skip_omani", 4, [
+        ("ما تعاملت مع الموظفين", "stay", None),
+        ("هيه", "skip", None),
+    ]),
+    ("staff_skip_decline", 4, [
+        ("ما تعاملت مع الموظفين", "stay", None),
+        ("لا، لا تتخطى", "stay", None),
+        ("تذكرت، تعاملت مع موظف وكان تعامله جيد", "next_question", "جيدة"),
+    ]),
+    ("legacy_skip_repair", 4, [
+        ("ليش ما تخطيت السؤال؟", "skip", None),
+    ]),
 ]
 
 
@@ -71,6 +88,13 @@ async def evaluate(output, interval, selected=None):
         decide = FoundryDecisionClient(client, os.environ["AZURE_OPENAI_DEPLOYMENT"])
         for name, index, turns in journeys:
             manager = prepared(index)
+            if name == "legacy_skip_repair":
+                manager.history.extend([
+                    {"role": "user", "content": "ما تعاملت مع الموظفين"},
+                    {"role": "assistant", "content": "فهمت إنك ما تعاملت مع الموظفين. هل تفضل تخطي السؤال؟"},
+                    {"role": "user", "content": "نعم"},
+                    {"role": "assistant", "content": "خلّنا نتأكد من السؤال الحالي. " + manager.question.text},
+                ])
             for n, (text, expected_action, value) in enumerate(turns):
                 proposal, usage = None, {}
                 async def capture(messages):
@@ -85,6 +109,8 @@ async def evaluate(output, interval, selected=None):
                     and result.committed == (value is not None)
                     and (value is None or actual == value))
                 quality_failures = []
+                if name.startswith("staff_skip_") and n == 0 and not manager.pending_confirmation:
+                    quality_failures.append("skip_offer_not_tracked")
                 if ((name == "caller_concerns" and n < 7)
                         or (name == "rating_questions" and n > 0)):
                     if manager.question.text in result.spoken_response or "هل تسمح لنا نبدأ" in result.spoken_response:

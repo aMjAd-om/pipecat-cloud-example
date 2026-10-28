@@ -41,6 +41,7 @@ def view(session):
                 current_question=manager.question.model_dump(), answers=dict(manager.answers),
                 paused=manager.paused, completed=manager.completed, cancelled=manager.cancelled,
                 pending_clarification=manager.pending_clarification,
+                pending_confirmation=manager.pending_confirmation,
                 skipped=sorted(manager.skipped), language=manager.language,
                 busy=session.pending is not None)
 

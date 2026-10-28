@@ -45,7 +45,8 @@ function render(state) {
   $("question").textContent = q.text;
   $("state").textContent = `${q.id} · ${q.kind} · version ${state.version}` +
     (q.kind === "rating" ? ` · range ${q.minimum}–${q.maximum}` : "") +
-    (q.choices.length ? ` · ${q.choices.join(" / ")}` : "");
+    (q.choices.length ? ` · ${q.choices.join(" / ")}` : "") +
+    (state.pending_confirmation ? ` · awaiting ${state.pending_confirmation.action} confirmation` : "");
   $("answers").replaceChildren();
   const entries = Object.entries(state.answers);
   if (!entries.length) $("answers").textContent = "No answers accepted yet.";
