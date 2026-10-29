@@ -1,0 +1,12 @@
+{
+  "name": "azure-voice-browser",
+  "private": true,
+  "type": "module",
+  "scripts": { "build": "node build.mjs", "test:browser": "node ../../tests/browser/browser.mjs" },
+  "dependencies": {
+    "@pipecat-ai/client-js": "0.4.0",
+    "@pipecat-ai/small-webrtc-transport": "file:vendor/small-webrtc-transport"
+  },
+  "devDependencies": { "esbuild": "0.25.12", "playwright": "1.56.1" },
+  "overrides": { "uuid": "11.1.1" }
+}

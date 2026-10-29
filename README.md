@@ -1,9 +1,9 @@
-﻿# Self-hosted Azure voice agent
+# Self-hosted Azure voice agent
 
 Browser microphone → native Pipecat SmallWebRTC → continuous Azure Speech STT →
 Foundry GPT-4.1-mini → streaming Azure or Cartesia TTS → SmallWebRTC → browser speaker.
 
-Speech output defaults to Azure. See [Cartesia setup and switching](CARTESIA_TTS.md)
+Speech output defaults to Azure. See [Cartesia setup and switching](docs/CARTESIA_TTS.md)
 to select Sonic 3.6 for both browser and Asterisk calls through `TTS_PROVIDER`.
 
 No Daily account, key, hosted room, browser SDK, or Pipecat Cloud runtime is used.
@@ -11,18 +11,18 @@ No Daily account, key, hosted room, browser SDK, or Pipecat Cloud runtime is use
 The supplied `.env.example` enables the Arabic customer-satisfaction survey from
 شركة تنقيب البيانات, with explicit consent and eight questions. Speech stays in
 `DEFAULT_LANGUAGE` for the entire call, using `ar-SA-HamedNeural` for Arabic.
-See [customer survey setup and verification](CUSTOMER_SURVEY.md).
+See [customer survey setup and verification](docs/CUSTOMER_SURVEY.md).
 `SURVEY_CONVERSATION_MANAGER=false` selects the legacy assistant for comparison.
-The [Phase 6 report](PHASE6.md) records the original implementation and benchmark.
+The [Phase 6 report](docs/PHASE6.md) records the original implementation and benchmark.
 
 To tune replies without making telephone calls, run
-`uv run --frozen python survey_chat.py` and open **http://127.0.0.1:7862**.
-The [local conversation lab](SURVEY_CHAT.md) uses the same survey decisions and
+`uv run --frozen python -m voice_agent.api.survey_chat` and open **http://127.0.0.1:7862**.
+The [local conversation lab](docs/SURVEY_CHAT.md) uses the same survey decisions and
 shows accepted answers, validation, and exportable traces without STT/TTS.
 
-For Linphone/Asterisk telephone calls, see [Asterisk setup](ASTERISK_SETUP.md),
+For Linphone/Asterisk telephone calls, see [Asterisk setup](docs/ASTERISK_SETUP.md),
 especially step 7 to enable extension `2000`, and the
-[adapter implementation report](ASTERISK_REPORT.md). Telephone media is an opt-in
+[adapter implementation report](docs/ASTERISK_REPORT.md). Telephone media is an opt-in
 loopback listener (`TELEPHONY_ENABLED=false` by default); Ubuntu Docker host
 networking connects it to Asterisk while the browser service keeps its existing path.
 
@@ -31,36 +31,19 @@ VAD settings were preserved during the transport migration. Pipecat remains 0.0.
 There was no repository frontend before this change; the previous browser page was
 hosted externally. The new page supplies only Start, Stop, mute, status, and errors.
 
-## Native localhost startup
 
-Use Python 3.11/3.12, uv, and Node 22+ with npm. Keep your populated `.env`.
-For a new checkout only, copy `.env.example` to `.env` and enter Azure credentials.
-The transport does not need an API key. Azure secrets stay on the backend.
+## Project organization
 
-```bash
-uv sync --frozen
-npm --prefix frontend ci --ignore-scripts
-npm --prefix frontend run build
-uv run --frozen python server.py
-```
+Backend code lives in `src/voice_agent/`, grouped by responsibility:
+`api/`, `conversation/`, `voice/`, `providers/`, `transports/`, and
+`observability/`. The browser voice client is in `frontend/voice/`; the text
+conversation lab is in `frontend/survey-chat/`. Questionnaires, evaluation
+scripts/results, tests, and guides have their own top-level folders.
+See [the architecture guide](docs/ARCHITECTURE.md) for module ownership and commands.
 
-Open **http://localhost:7860**, click Start conversation, and grant microphone access.
-`python bot.py` and `python main.py` also launch the server. Use headphones for barge-in.
-A browser on another device needs a reachable HTTPS origin; ordinary HTTP on a LAN IP
-cannot request a microphone. Stop releases the microphone, connection, and Azure pipeline.
-
-Ubuntu native packages:
-
-```bash
-sudo apt-get update
-sudo apt-get install -y libasound2 libssl3 libgomp1 libgl1 libglib2.0-0 ca-certificates
-```
-
-Windows native development is supported. PyAV is constrained to 14.2.0 on Windows
-because 14.4.0 has no Windows wheel; both versions meet aiortc 1.11's av<15 requirement.
-Pipecat remains pinned to 0.0.72. Azure Speech SDK requires 1.48.2 or later to
-address Linux certificate revocation compatibility failures; this project uses 1.48.x.
-Speech is installed directly because Pipecat 0.0.72's optional `azure` extra pins 1.42.x.
+Docker starts the application inside the container automatically. Use the Docker
+commands below; no separate host Python command is needed. Existing `.env`
+questionnaire filenames remain supported.
 
 ## Docker
 
@@ -91,6 +74,37 @@ for Nginx. Do not combine this file with the bridge configuration. Use one worke
 connection ownership is in memory, and multiple workers need session-aware routing.
 Image builds compile the locked frontend and install the frozen Python lock. The
 runtime is non-root, with an init process and a 35-second shutdown grace period.
+
+## Optional native startup (without Docker)
+
+Use Python 3.11/3.12, uv, and Node 22+ with npm. Keep your populated `.env`.
+For a new checkout only, copy `.env.example` to `.env` and enter Azure credentials.
+The transport does not need an API key. Azure secrets stay on the backend.
+
+```bash
+uv sync --frozen
+npm --prefix frontend/voice ci --ignore-scripts
+npm --prefix frontend/voice run build
+uv run --frozen python -m voice_agent
+```
+
+Open **http://localhost:7860**, click Start conversation, and grant microphone access.
+Use headphones for barge-in.
+A browser on another device needs a reachable HTTPS origin; ordinary HTTP on a LAN IP
+cannot request a microphone. Stop releases the microphone, connection, and Azure pipeline.
+
+Ubuntu native packages:
+
+```bash
+sudo apt-get update
+sudo apt-get install -y libasound2 libssl3 libgomp1 libgl1 libglib2.0-0 ca-certificates
+```
+
+Windows native development is supported. PyAV is constrained to 14.2.0 on Windows
+because 14.4.0 has no Windows wheel; both versions meet aiortc 1.11's av<15 requirement.
+Pipecat remains pinned to 0.0.72. Azure Speech SDK requires 1.48.2 or later to
+address Linux certificate revocation compatibility failures; this project uses 1.48.x.
+Speech is installed directly because Pipecat 0.0.72's optional `azure` extra pins 1.42.x.
 
 ## Signaling and sessions
 
@@ -131,7 +145,7 @@ SDK completely while retaining the pinned Pipecat API, this repository explicitl
 vendors an **audio-only adaptation of SmallWebRTC 0.4.0**. This is a local package,
 not an unmodified npm release. It keeps the upstream SDP, data-channel, heartbeat,
 track-status and renegotiation protocol, replacing device capture with getUserMedia.
-See `frontend/vendor/small-webrtc-transport/README.md` for source, license, and changes.
+See `frontend/voice/vendor/small-webrtc-transport/README.md` for source, license, and changes.
 The dependency tree contains no `@daily-co/daily-js`; browser assets make no external
 transport SDK requests. Camera, screen sharing, and device-switching UI are omitted.
 
@@ -198,18 +212,18 @@ References: [pinned native SmallWebRTC source](https://github.com/pipecat-ai/pip
 Independent Azure checks still require no browser or transport:
 
 ```bash
-uv run --frozen python verify_services.py llm
-uv run --frozen python verify_services.py tts
-uv run --frozen python verify_services.py speech-roundtrip
-uv run --frozen python verify_services.py stt --wav /path/to/test-16k-mono.wav
+uv run --frozen python -m scripts.verify_services llm
+uv run --frozen python -m scripts.verify_services tts
+uv run --frozen python -m scripts.verify_services speech-roundtrip
+uv run --frozen python -m scripts.verify_services stt --wav /path/to/test-16k-mono.wav
 ```
 
 If the server connects WebRTC but repeatedly logs Azure STT cancellations, run
 the checks **inside the deployed container** to use its credentials and network:
 
 ```bash
-docker compose -f docker-compose.ubuntu.yml exec agent python verify_services.py tts
-docker compose -f docker-compose.ubuntu.yml exec agent python verify_services.py speech-roundtrip
+docker compose -f docker-compose.ubuntu.yml exec agent python -m scripts.verify_services tts
+docker compose -f docker-compose.ubuntu.yml exec agent python -m scripts.verify_services speech-roundtrip
 ```
 
 The roundtrip synthesizes a test phrase before checking recognition, so resolve any
@@ -230,7 +244,7 @@ inside the container, then rerun the checks above.
 Backend regressions:
 
 ```bash
-uv run --frozen python -m unittest discover -s tests -v
+uv run --frozen python -m unittest discover -s tests -t . -v
 ```
 
 Automated browser smoke test against an already-running server:
@@ -238,14 +252,14 @@ Automated browser smoke test against an already-running server:
 ```bash
 # Set BROWSER_PATH to your Chrome/Chromium/Edge executable if needed.
 # Optional TEST_WAV: path to non-sensitive synthetic/test PCM WAV input.
-npm --prefix frontend run test:browser
+npm --prefix frontend/voice run test:browser
 ```
 
 The included runner defaults to installed Edge on Windows. It requests a fake device,
 then injects synthetic WebAudio input; it checks real browser WebRTC negotiation,
 nonzero decoded return-audio energy, mute/unmute, two sessions, Stop and reconnect.
 It does not establish physical microphone quality or actual speaker audibility.
-See `TEST_RESULTS.md` for actual runs, limitations and latency samples. Manually test
+See [test results](docs/TEST_RESULTS.md) for actual runs, limitations and latency samples. Manually test
 Arabic, English, repeated turns, silence, interruption during speech, mute/unmute,
 tab close, network loss and remote HTTPS on the actual target network.
 

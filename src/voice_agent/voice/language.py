@@ -1,0 +1,55 @@
+"""Fixed session speech language, checked before any model text reaches TTS."""
+from voice_agent.conversation.language import safe_spoken_text
+
+from pipecat.frames.frames import (
+    CancelFrame, EndFrame, LLMFullResponseEndFrame, LLMFullResponseStartFrame,
+    LLMTextFrame, StartInterruptionFrame,
+)
+from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
+
+
+class LanguageLockedResponse(FrameProcessor):
+    """Buffer a response so a later English token cannot follow spoken Arabic.
+
+    The survey renderer normally handles the language already. This final boundary
+    also covers the legacy streaming assistant and configured questionnaire text.
+    """
+    def __init__(self, language):
+        super().__init__()
+        self.language = language
+        self._parts = None
+        self._size = 0
+        self._overflow = False
+
+    def _safe(self, text):
+        return safe_spoken_text(text, self.language, overflow=self._overflow)
+
+    async def process_frame(self, frame, direction):
+        await super().process_frame(frame, direction)
+        if direction != FrameDirection.DOWNSTREAM:
+            await self.push_frame(frame, direction)
+            return
+        if isinstance(frame, (StartInterruptionFrame, CancelFrame, EndFrame)):
+            self._parts = None
+            self._size = 0
+            self._overflow = False
+        if isinstance(frame, LLMFullResponseStartFrame):
+            self._parts = []
+            self._size = 0
+            self._overflow = False
+        elif isinstance(frame, LLMTextFrame):
+            if self._parts is not None:
+                self._size += len(frame.text)
+                if self._size <= 6000:
+                    self._parts.append(frame.text)
+                else:
+                    self._overflow = True
+                return
+            await self.push_frame(LLMTextFrame(self._safe(frame.text)), direction)
+            return
+        elif isinstance(frame, LLMFullResponseEndFrame) and self._parts is not None:
+            text = self._safe("".join(self._parts))
+            self._parts = None
+            self._overflow = False
+            await self.push_frame(LLMTextFrame(text), direction)
+        await self.push_frame(frame, direction)

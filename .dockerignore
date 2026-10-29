@@ -1,12 +1,13 @@
 .git
 .history
 **/node_modules
-frontend/dist
+frontend/voice/dist
 .env
 .env.*
 .venv
 .cache
-__pycache__
+**/__pycache__
 tests
 *.wav
 *.log
+**/*.egg-info
