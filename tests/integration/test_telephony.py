@@ -303,6 +303,7 @@ class EndpointTests(unittest.TestCase):
                     current_question_id="consent" if number == 0 else "overall_rating")), {}
 
         from voice_agent.voice import pipeline as bot
+        from voice_agent.voice.pickup import PickupGreetingProcessor
         async def wait_closed(client):
             for _ in range(300):
                 if not client.app.state.calls:
@@ -316,7 +317,9 @@ class EndpointTests(unittest.TestCase):
              patch.object(bot, "StreamingAzureSTT", STT), \
              patch.object(bot, "create_tts", TTS), \
              patch.object(bot, "FoundryLLMService", LLM), \
-             patch("voice_agent.providers.foundry_llm.FoundryDecisionClient", DecisionClient):
+             patch("voice_agent.providers.foundry_llm.FoundryDecisionClient", DecisionClient), \
+             patch("voice_agent.voice.pickup.PickupGreetingProcessor", side_effect=lambda *args:
+                   PickupGreetingProcessor(*args, pickup_pause=.01, response_pause=.3)):
             with self.client(bot.main) as client:
                 with client.websocket_connect("/telephony/media", subprotocols=["media"]) as ws:
                     initial = start_event()
@@ -326,14 +329,24 @@ class EndpointTests(unittest.TestCase):
                     for packet in range(3):
                         self.assertEqual(len(ws.receive_bytes()), 640)
                     self.assertEqual(len(texts), 1)
-                    self.assertIn("هل تسمح", texts[0])
+                    self.assertEqual(texts[0], "السلام عليكم")
+                    self.assertEqual(len(decisions), 0)
+                    # The first reply establishes a live caller. Even "yes"
+                    # must not count as consent before the introduction.
+                    ws.send_bytes(b"\x01\x00" * 320)
+                    for packet in range(3):
+                        self.assertEqual(len(ws.receive_bytes()), 640)
+                    self.assertIn("شركة داتامايننج", texts[1])
+                    self.assertIn("هل تسمح", texts[1])
+                    self.assertEqual(len(decisions), 0)
+                    client.portal.call(asyncio.sleep, .05)
                     for marker in (1, 2):
                         ws.send_bytes(bytes([marker, 0]) * 320)
                         for packet in range(3):
                             self.assertEqual(len(ws.receive_bytes()), 640)
                     self.assertEqual(len(decisions), 2)
-                    self.assertIn("بشكل عام", texts[1])
-                    self.assertIn("السبب", texts[2])
+                    self.assertIn("بشكل عام", texts[2])
+                    self.assertIn("السبب", texts[3])
                     ws.send_bytes(b"\x03\x00" * 320)
                     self.assertEqual(ws.receive_bytes()[:2], b"\x00\x30")
                     ws.send_bytes(b"\x04\x00" * 320)
@@ -358,12 +371,24 @@ class EndpointTests(unittest.TestCase):
                     ws.send_json(start_event(channel=initial["channel_id"]))
                     for _ in range(3):
                         self.assertEqual(len(ws.receive_bytes()), 640)
-                    self.assertIn("هل تسمح", texts[-1])
+                    self.assertEqual(texts[-1], "السلام عليكم")
                     ws.send_bytes(b"x")
                     with self.assertRaises(WebSocketDisconnect):
                         ws.receive_bytes()
                     client.portal.call(wait_closed, client)
                 self.assertEqual(len(decisions), 2)
+                # A silent caller hears exactly three greetings, then the
+                # real pipeline cancels and closes the telephone WebSocket.
+                silent_start = len(texts)
+                with client.websocket_connect("/telephony/media", subprotocols=["media"]) as ws:
+                    ws.send_json(start_event())
+                    for _ in range(9):
+                        self.assertEqual(len(ws.receive_bytes()), 640)
+                    with self.assertRaises(WebSocketDisconnect):
+                        ws.receive_bytes()
+                    client.portal.call(wait_closed, client)
+                self.assertEqual(texts[silent_start:], ["السلام عليكم", "السلام عليكم", "مرحبا"])
+                self.assertEqual(client.get("/health").json()["calls"], 0)
         for service in services:
             service.close.assert_awaited()
 

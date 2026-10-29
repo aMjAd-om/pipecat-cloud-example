@@ -3,7 +3,7 @@
 The active questionnaire is `questionnaires/customer-satisfaction.ar.json`. It
 contains the user's exact Arabic introduction, permission question, eight survey
 questions in order, and closing. Company facts are restricted to the supplied
-description of شركة تنقيب البيانات. Unknown prices, contacts, service-provider
+description of شركة داتامايننج. Unknown prices, contacts, service-provider
 identity and privacy policies must not be invented.
 
 For the response-style changes addressing caller concerns, concise rating
@@ -12,6 +12,37 @@ and its live synthetic evaluation. The service being rated is still unspecified;
 the survey executor must not be presented as its service provider.
 
 ## Configuration
+
+### Telephone pickup opening
+
+With the survey conversation manager enabled, telephone calls wait one second
+after media readiness, then say `السلام عليكم`. After playback finishes, the
+agent waits three seconds for a response. Silence triggers a second
+`السلام عليكم`, another three-second response window, then `مرحبا` and a final
+three-second window. Continued silence ends the call and releases its resources.
+
+Caller speech immediately stops the retry sequence. The agent waits for the
+caller to finish, then says:
+
+> معك مساعد ذكي من شركة داتامايننج،
+> نتواصل معك اليوم لإجراء استبيان قصير لقياس الرضا عن المنصة،
+> هل تسمح لنا نبدأ الاستبيان؟
+
+The pickup response is consumed separately and cannot grant survey consent.
+The consent answer is handled after the introduction. The text lab starts directly
+at this introduction; the pickup pauses and silence hangup apply to telephone audio.
+
+The opening state machine is in `src/voice_agent/voice/pickup.py`. Playback markers
+travel through the paced audio output before starting response timers, including
+when a TTS provider splits an utterance into multiple sentences.
+
+Rebuild the Ubuntu container to apply changes:
+
+```bash
+docker compose -f docker-compose.ubuntu.yml up -d --build
+```
+
+### Environment
 
 The working copy's `.env` and `.env.example` select:
 

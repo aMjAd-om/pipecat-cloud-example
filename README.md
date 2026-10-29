@@ -224,6 +224,8 @@ the checks **inside the deployed container** to use its credentials and network:
 ```bash
 docker compose -f docker-compose.ubuntu.yml exec agent python -m scripts.verify_services tts
 docker compose -f docker-compose.ubuntu.yml exec agent python -m scripts.verify_services speech-roundtrip
+
+docker compose -f docker-compose.ubuntu.yml exec -d agent python -m voice_agent.api.survey_chat
 ```
 
 The roundtrip synthesizes a test phrase before checking recognition, so resolve any

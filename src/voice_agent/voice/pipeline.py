@@ -23,6 +23,8 @@ from voice_agent.voice.language import LanguageLockedResponse
 
 async def main(connection, *, stop_event=None, transport=None):
     telephone = transport is not None
+    if telephone and stop_event is None:
+        stop_event = asyncio.Event()
     language = os.getenv("DEFAULT_LANGUAGE", "ar")
     timing = TurnTiming()
     transport = transport or SmallWebRTCTransport(connection, TransportParams(
@@ -50,6 +52,8 @@ async def main(connection, *, stop_event=None, transport=None):
     aggregator = llm.create_context_aggregator(context)
     rtvi = None if telephone else RTVIProcessor(transport=transport)
     survey_processor = None
+    pickup_processor = None
+    pickup_observer = None
     if os.getenv("SURVEY_CONVERSATION_MANAGER", "false").lower() == "true":
         from voice_agent.conversation import ConversationManager, Questionnaire
         from voice_agent.providers.foundry_llm import FoundryDecisionClient
@@ -60,14 +64,20 @@ async def main(connection, *, stop_event=None, transport=None):
         )
         survey_processor = SurveyConversationProcessor(manager, FoundryDecisionClient(
             llm._client, os.environ["AZURE_OPENAI_DEPLOYMENT"]), timing)
+        if telephone:
+            from voice_agent.voice.pickup import PickupGreetingProcessor, PickupPlaybackObserver
+            pickup_processor = PickupGreetingProcessor(manager, stop_event)
+            pickup_observer = PickupPlaybackObserver()
     conversation = ([survey_processor] if survey_processor else
                     [aggregator.user(), LatencyProbe(timing, "request"), llm])
     pipeline = Pipeline([
         transport.input(), *([rtvi] if rtvi else []), LatencyProbe(timing, "input"), stt,
+        *([pickup_processor] if pickup_processor else []),
         *conversation,
         LanguageLockedResponse(language),
         LatencyProbe(timing, "llm"), tts, LatencyProbe(timing, "audio"),
         transport.output(), *([] if survey_processor else [aggregator.assistant()]),
+        *([pickup_observer] if pickup_observer else []),
     ])
     task = PipelineTask(pipeline, params=PipelineParams(
         audio_in_sample_rate=16000, audio_out_sample_rate=24000,
@@ -93,7 +103,10 @@ async def main(connection, *, stop_event=None, transport=None):
             await rtvi.set_bot_ready()
         if not greeted:
             greeted = True
-            if survey_processor:
+            if pickup_processor:
+                from voice_agent.voice.pickup import PickupOpeningFrame
+                await task.queue_frames([PickupOpeningFrame()])
+            elif survey_processor:
                 from voice_agent.voice.survey import SurveyOpeningFrame
                 await task.queue_frames([SurveyOpeningFrame()])
             else:

@@ -23,7 +23,7 @@ class CustomerSurveyTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(m.questionnaire.questions), 9)  # Consent + eight survey questions.
         self.assertEqual(m.opening(), m.questionnaire.introduction + "\n\nهل تسمح لنا نبدأ الاستبيان؟")
         self.assertNotIn("بشكل عام", m.opening())
-        self.assertIn("شركة تنقيب البيانات", m.opening())
+        self.assertIn("شركة داتامايننج", m.opening())
         for i, answer in enumerate(ANSWERS):
             qid = m.question.id
             result = await m.turn(str(i), str(answer), model(decision(qid, answer_value=answer)))
