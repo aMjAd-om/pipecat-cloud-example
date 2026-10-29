@@ -58,6 +58,18 @@ class ChatTests(unittest.TestCase):
         self.assertEqual(len(self.calls), 1)
         self.assertEqual(result["metrics"]["total_tokens"], 123)
 
+    def test_company_reply_returns_separate_delayed_question_without_consent(self):
+        state = self.new()["state"]
+        self.proposal = {**decision(), "intent": "company", "answer_status": "not_answered",
+                         "answer_value": None, "action": "stay",
+                         "spoken_response": "من شركة داتامايننج."}
+        result = self.turn(state, "من أي شركة قلت لي؟").json()
+        self.assertEqual(result["spoken_response"], "من شركة داتامايننج.")
+        self.assertIn("هل تسمح لنا نبدأ الاستبيان؟", result["follow_up"])
+        self.assertEqual(result["pause_seconds"], 1.0)
+        self.assertEqual(result["state"]["answers"], {})
+        self.assertEqual(result["state"]["current_question"]["id"], "consent")
+
     def test_invalid_proposal_does_not_speak_acknowledgement_or_commit(self):
         state = self.new()["state"]
         self.proposal = {**decision(), "current_question_id": "wrong", "spoken_response": "تم تسجيل إجابتك."}

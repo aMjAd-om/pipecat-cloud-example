@@ -58,7 +58,17 @@ class Decision(BaseModel):
     answer_status: Literal["valid", "invalid", "not_answered", "needs_clarification"]
     answer_value: int | str | None
     action: Literal["stay", "next_question", "repeat", "skip", "pause", "resume", "finish"]
-    spoken_response: str = Field(min_length=1, max_length=600)
+    spoken_response: str = Field(
+        min_length=1, max_length=600,
+        description="A brief, natural spoken reply to the customer's actual meaning. "
+                    "Use familiar conversational language, not formal written prose. "
+                    "Acknowledge relevant feedback when useful and gently invite only the "
+                    "missing information in the current question's answer format. "
+                    "Never use a canned reply for an intent, announce answer selection or "
+                    "storage, or automatically add gratitude. Company-name questions need "
+                    "only the authorized name. Do not include a survey reminder or the next "
+                    "question: Python handles those separately.",
+    )
     current_question_id: str
 
 
@@ -76,3 +86,5 @@ class Result:
     spoken_response: str
     reason: str
     committed: bool = False
+    follow_up: str = ""
+    pause_seconds: float = 0.0

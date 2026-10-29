@@ -130,6 +130,7 @@ async def evaluate(output, interval, selected=None):
                         quality_failures.append("duplicates_transition_question")
                 row = dict(journey=name, turn=n, customer=text, question_id=qid,
                     proposal=proposal, spoken_response=result.spoken_response,
+                    follow_up=result.follow_up, pause_seconds=result.pause_seconds,
                     accepted=result.accepted, committed=result.committed, reason=result.reason,
                     expected_action=expected_action, correct=correct,
                     quality_failures=quality_failures,

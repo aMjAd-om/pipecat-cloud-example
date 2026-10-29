@@ -2,6 +2,24 @@
 const $ = id => document.getElementById(id);
 let token = "", session = null, busy = false, restarting = false, generation = 0;
 const history = [];
+let followUpTimer = null;
+
+function cancelFollowUp() {
+  clearTimeout(followUpTimer);
+  followUpTimer = null;
+}
+
+function scheduleFollowUp(data, mine) {
+  cancelFollowUp();
+  if (!data.follow_up) return;
+  followUpTimer = setTimeout(() => {
+    followUpTimer = null;
+    if (generation === mine && session?.session_id === data.state.session_id &&
+        session.version === data.state.version && !busy) {
+      message("agent", data.follow_up);
+    }
+  }, data.pause_seconds * 1000);
+}
 
 async function api(path, {method = "GET", body} = {}) {
   const response = await fetch(path, {method, cache: "no-store", headers: {
@@ -60,6 +78,7 @@ function render(state) {
 }
 
 async function restart() {
+  cancelFollowUp();
   if (restarting) return;
   restarting = true; $("restart").disabled = true;
   const mine = ++generation;
@@ -80,6 +99,7 @@ $("composer").addEventListener("submit", async event => {
   event.preventDefault();
   const text = $("reply").value.trim();
   if (!text || !session || busy) return;
+  cancelFollowUp();
   const mine = generation, before = session;
   busy = true; controls(); $("error").textContent = ""; $("reply").value = "";
   message("customer", text);
@@ -98,6 +118,7 @@ $("composer").addEventListener("submit", async event => {
     const detail = document.createElement("div");
     detail.textContent = `${data.validation.reason} · ${Math.round(data.elapsed_ms)} ms · ${data.metrics.total_tokens ?? 0} tokens`;
     $("result").append(badge, detail); render(data.state);
+    scheduleFollowUp(data, mine);
   } catch (error) { if (mine === generation) { $("error").textContent = error.message; $("reply").value = text; } }
   finally { if (mine === generation) { busy = false; controls(); if (!$("reply").disabled) $("reply").focus(); } }
 });
@@ -110,6 +131,7 @@ $("suggestions").addEventListener("click", event => {
 });
 $("restart").addEventListener("click", restart);
 $("interrupt").addEventListener("click", async () => {
+  cancelFollowUp();
   const mine = generation, sid = session?.session_id;
   $("interrupt").disabled = true;
   try {

@@ -1,5 +1,11 @@
 # Local survey conversation lab
 
+After a company/identity question or another accepted non-answer, the lab displays
+the direct reply, waits one second, then separately returns to the current survey
+question. Sending another reply, interrupting, or starting a new conversation
+cancels the older reminder. Exported turn records include `follow_up` and
+`pause_seconds` separately from the model's `spoken_response`.
+
 Test the Arabic survey by typing what a customer would say. The page uses the same `ConversationManager`, questionnaire, five-section prompt, strict model schema, `FoundryDecisionClient`, and final language check used for phone calls. No STT, TTS, microphone, Asterisk, or WebRTC connection is required.
 
 ## Run on your computer

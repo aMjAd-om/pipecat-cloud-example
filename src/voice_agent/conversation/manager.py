@@ -7,6 +7,7 @@ from uuid import uuid4
 from voice_agent.conversation.models import Questionnaire, Decision, Snapshot, Result
 from voice_agent.conversation.answers import rating_tokens, normalize_answer
 from voice_agent.conversation.prompts import PROMPT
+from voice_agent.conversation.guidance import response_requirements
 
 
 class ConversationManager:
@@ -45,6 +46,7 @@ class ConversationManager:
                      consent_granted=(self.questionnaire.questions[0].kind != "consent" or
                          self.answers.get(self.questionnaire.questions[0].id) == "نعم"),
                      current_question=self.question.model_dump(),
+                     response_requirements=response_requirements(self.question),
                      completed_answers=dict(self.answers), skipped=sorted(self.skipped),
                      paused=self.paused, completed=self.completed, cancelled=self.cancelled,
                      pending_clarification=self.pending_clarification,
@@ -183,6 +185,11 @@ class ConversationManager:
             committed = False
             self.pending_confirmation = None
             text = d.spoken_response.strip()
+            if (d.action == "stay" and d.answer_status == "not_answered"
+                    and d.intent in ("company", "identity", "off_topic")):
+                # Keep the generated answer, but let the separate timed reminder
+                # own any exact replay of the active questionnaire question.
+                text = text.replace(self.question.text, "").strip()
             if d.action in ("next_question", "repeat", "resume", "skip") and any(
                     mark in text for mark in ("؟", "?")):
                 # A transition bridge cannot ask its own question: Python owns
@@ -241,7 +248,13 @@ class ConversationManager:
                     "تم إلغاء الاستبيان. شكراً لوقتك.",
                     "The survey is cancelled. Thank you for your time.")
             self._remember(utterance, text)
-            return Result(True, text, "accepted", committed)
+            follow_up = ""
+            if (d.action == "stay" and d.answer_status == "not_answered"
+                    and d.intent in ("company", "identity", "off_topic", "clarify")
+                    and not self.paused and not self.completed and not self.cancelled):
+                follow_up = self._say("نرجع لسؤالنا، ", "Let's return to the question: ") + self.question.text
+            return Result(True, text, "accepted", committed, follow_up,
+                          1.0 if follow_up else 0.0)
 
     async def turn(self, event_id, utterance, decide, *, snapshot=None):
         # IDs identify recognition events, never transcript text: repeated 'four'
@@ -266,23 +279,18 @@ class ConversationManager:
                 ". Do not switch language or quote words in another language." +
                 ". Active question (this overrides any older question in history): " +
                 q.model_dump_json() +
-                ". Use this question kind only and return the exact action/status contract. "
-                "Respond to the latest customer's concern first. For identity/company/"
-                "authorization/service-identity questions, answer briefly and WAIT: do not "
-                "append consent or the active survey question. For an exact rating endpoint "
-                "description, ask to confirm its single numeric value without saving yet. "
-                "Do not simply demand the scale again or repeat your preceding script. "
-                "Use everyday spoken Arabic when configured ar; no administrative 'تم تسجيل' "
-                "confirmations or generic 'كيف يمكنني مساعدتك' endings. An acknowledgement "
-                "must be brief and fit the actual feedback. Avoid stock 'وصلت تقييمك', "
-                "'وصلني تقييمك', or 'وصلت وجهة نظرك' replies and do not reuse your recent "
-                "acknowledgement. A bare rating needs only a minimal transition, without "
-                "announcing receipt or restating the rating. Do not rotate a fixed script. "
-                "If the customer agrees to a pending skip offer for this question, return "
-                "intent=skip, answer_status=not_answered, action=skip, answer_value=null. "
-                "Agreement to skipping is not a valid questionnaire answer; do not reconfirm it. "
-                "If history already shows the caller agreed to a skip and now asks why you "
-                "did not skip, honor it with action=skip immediately, not another offer."},
+                ". Answer requirements: " + json.dumps(response_requirements(q), ensure_ascii=False) +
+                ". Answer the latest meaning first, using recent dialogue and familiar "
+                "everyday spoken vocabulary. Avoid formal written-Arabic tone, administrative "
+                "announcements, and automatic gratitude. Ask politely for "
+                "only the missing information in this question's format; acknowledge qualitative "
+                "feedback without choosing a rating for the customer. Adapt to repeated "
+                "clarifications rather than repeating a script or attaching a fixed courtesy "
+                "phrase. Use only the active bounds and choices, never a default scale. "
+                "For company or identity questions, answer only what was asked from authorized "
+                "facts; Python handles the separate return to the question. For transitions, "
+                "Python supplies the exact next question. Preserve the action/status contract "
+                "and distinguish confirmation of a pending action from an answer."},
                 {"role": "user", "content": utterance}]
             decision, usage = await decide(messages)
             decision = Decision.model_validate(decision) if isinstance(decision, dict) else Decision.model_validate_json(decision)

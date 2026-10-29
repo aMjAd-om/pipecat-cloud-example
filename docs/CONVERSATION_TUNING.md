@@ -1,5 +1,56 @@
 # Conversational response tuning
 
+## Contextual wording across questionnaire types
+
+Normal replies are generated from general conversation rules, recent dialogue,
+and the current question's `response_requirements`. The prompt contains no complete
+reply scripts or memorized company names. Guidance comes from the question's kind,
+relevance, numeric bounds, choices, optionality, text length, and insufficient-answer
+rules. A different scale or survey topic does not require another response template.
+
+For relevant qualitative feedback on a rating question, the model acknowledges the
+meaning when useful and politely invites the customer's own numeric choice. It
+should adapt repeated clarifications to what remains unclear, without choosing a
+score, treating praise as an invalid answer, or attaching the same courtesy phrase
+to every request. Choice and text questions use their own answer formats.
+
+Python still owns validation and state. Fixed questionnaire text, pickup greetings,
+and defensive fallbacks for invalid proposals/provider failures are separate from
+normal model-generated conversation. The one-second return-to-question behavior
+continues for accepted non-answer turns; it does not duplicate a pending clarification.
+
+`evaluations/cases/response_style_cases.py` includes synthetic scenarios for several
+rating scales, choices, free text, conditional details, and consent. Offline tests
+check metadata and state boundaries without demanding a preferred reply sentence.
+Live checks assess decision contracts, repetition, and optional semantic style:
+
+```bash
+uv run --frozen python -m evaluations.evaluate_response_style --live --judge-style
+```
+
+This command sends synthetic cases to the configured model and makes additional
+model calls for the style assessment. Results go to
+`evaluations/results/response_style_evaluation.json`. The semantic assessment is
+advisory and cannot guarantee the quality of every future reply; inspect the saved
+responses as well as the pass counts. No live customer dialogue is used.
+
+
+Company and identity intents classify a turn; they do not choose a canned reply.
+The model answers the specific question using questionnaire facts. A company-name
+reminder needs only the company name, without repeating the assistant introduction
+or company biography. The prompt uses the name in the current questionnaire.
+
+For accepted non-answer turns that stay on the active question, the application
+returns a separate `follow_up` with a one-second `pause_seconds`. Voice waits for
+the direct reply to finish playing, pauses, then returns to the exact current
+question. The chat displays the same reminder after one second. New caller speech,
+a new chat submission, interruption, reset, or a changed survey state cancels a
+pending reminder. Paused surveys and pending answer clarifications do not receive
+this reminder. The direct reply remains in `spoken_response`; the model must not
+append its own duplicate survey question.
+
+The historical measurements below predate this separate reminder behavior.
+
 This change addresses the caller examples supplied from the text lab: repeated introductions/consent requests, failure to answer who is calling or why, unsupported service attribution, demanding the numeric scale after clear verbal feedback, and repeating questions when the caller expresses frustration.
 
 ## Behavior changes

@@ -1,0 +1,360 @@
+{
+  "summary": {
+    "evaluated": 8,
+    "passed": 8,
+    "semantic_style_checked": true
+  },
+  "cases": [
+    {
+      "case": "positive_feedback_five_point",
+      "customer": "جيدة الصراحة",
+      "question": {
+        "id": "experience",
+        "text": "كيف تقيّم تجربتك من واحد إلى خمسة؟",
+        "kind": "rating",
+        "choices": [],
+        "insufficient_answers": [],
+        "minimum": 1,
+        "maximum": 5,
+        "max_length": 1000,
+        "optional": false,
+        "relevance": "تقييم رقمي صريح للتجربة العامة."
+      },
+      "requirements": {
+        "topic": "تقييم رقمي صريح للتجربة العامة.",
+        "can_skip": false,
+        "format": "integer",
+        "minimum": 1,
+        "maximum": 5,
+        "clarification_goal": "Acknowledge relevant feedback and politely invite the customer to choose their own number within these bounds.",
+        "acceptance": "An explicit relevant number, or explicit confirmation of one pending number grounded in an exact endpoint of the current question. Never infer a score from general praise or criticism."
+      },
+      "proposal": {
+        "intent": "clarify",
+        "answer_status": "needs_clarification",
+        "answer_value": null,
+        "action": "stay",
+        "spoken_response": "فهمت إن تجربتك كانت جيدة. ممكن تعطيني تقييم رقمي من واحد إلى خمسة؟ الرقم هذا يساعدنا نفهم رأيك بشكل أوضح.",
+        "current_question_id": "experience"
+      },
+      "spoken_response": "فهمت إن تجربتك كانت جيدة. ممكن تعطيني تقييم رقمي من واحد إلى خمسة؟ الرقم هذا يساعدنا نفهم رأيك بشكل أوضح.",
+      "follow_up": "",
+      "accepted": true,
+      "committed": false,
+      "failures": [],
+      "style_assessment": {
+        "passes": true,
+        "issues": []
+      }
+    },
+    {
+      "case": "negative_feedback_ten_point",
+      "customer": "التوصيل تأخر واجد",
+      "question": {
+        "id": "delivery",
+        "text": "كيف تقيّم تجربة التوصيل من صفر إلى عشرة؟",
+        "kind": "rating",
+        "choices": [],
+        "insufficient_answers": [],
+        "minimum": 0,
+        "maximum": 10,
+        "max_length": 1000,
+        "optional": false,
+        "relevance": "تقييم تجربة التوصيل برقم يختاره العميل."
+      },
+      "requirements": {
+        "topic": "تقييم تجربة التوصيل برقم يختاره العميل.",
+        "can_skip": false,
+        "format": "integer",
+        "minimum": 0,
+        "maximum": 10,
+        "clarification_goal": "Acknowledge relevant feedback and politely invite the customer to choose their own number within these bounds.",
+        "acceptance": "An explicit relevant number, or explicit confirmation of one pending number grounded in an exact endpoint of the current question. Never infer a score from general praise or criticism."
+      },
+      "proposal": {
+        "intent": "clarify",
+        "answer_status": "needs_clarification",
+        "answer_value": null,
+        "action": "stay",
+        "spoken_response": "فهمت إن التوصيل تأخر كثير. ممكن تعطيني تقييمك للتجربة من صفر إلى عشرة؟ الرقم اللي تختاره يعبر عن رضاك.",
+        "current_question_id": "delivery"
+      },
+      "spoken_response": "فهمت إن التوصيل تأخر كثير. ممكن تعطيني تقييمك للتجربة من صفر إلى عشرة؟ الرقم اللي تختاره يعبر عن رضاك.",
+      "follow_up": "",
+      "accepted": true,
+      "committed": false,
+      "failures": [],
+      "style_assessment": {
+        "passes": true,
+        "issues": []
+      }
+    },
+    {
+      "case": "repeated_clarification_seven_point",
+      "customer": "قلت لك زينة، ليش تعيد السؤال؟",
+      "question": {
+        "id": "visit",
+        "text": "كيف تقيّم زيارتك من واحد إلى سبعة؟",
+        "kind": "rating",
+        "choices": [],
+        "insufficient_answers": [],
+        "minimum": 1,
+        "maximum": 7,
+        "max_length": 1000,
+        "optional": true,
+        "relevance": "تقييم رقمي لتجربة الزيارة."
+      },
+      "requirements": {
+        "topic": "تقييم رقمي لتجربة الزيارة.",
+        "can_skip": true,
+        "format": "integer",
+        "minimum": 1,
+        "maximum": 7,
+        "clarification_goal": "Acknowledge relevant feedback and politely invite the customer to choose their own number within these bounds.",
+        "acceptance": "An explicit relevant number, or explicit confirmation of one pending number grounded in an exact endpoint of the current question. Never infer a score from general praise or criticism."
+      },
+      "proposal": {
+        "intent": "clarify",
+        "answer_status": "needs_clarification",
+        "answer_value": null,
+        "action": "stay",
+        "spoken_response": "أفهم إنك تقول إن التجربة كانت زينة، بس ممكن تحدد لي رقم من واحد إلى سبعة يعبر عن تقييمك للزيارة؟ هذا يساعدنا نفهم رأيك بشكل أوضح.",
+        "current_question_id": "visit"
+      },
+      "spoken_response": "أفهم إنك تقول إن التجربة كانت زينة، بس ممكن تحدد لي رقم من واحد إلى سبعة يعبر عن تقييمك للزيارة؟ هذا يساعدنا نفهم رأيك بشكل أوضح.",
+      "follow_up": "",
+      "accepted": true,
+      "committed": false,
+      "failures": [],
+      "style_assessment": {
+        "passes": true,
+        "issues": []
+      }
+    },
+    {
+      "case": "ambiguous_contact_choice",
+      "customer": "مب متأكد أي واحد أختار",
+      "question": {
+        "id": "contact",
+        "text": "أي قناة تفضّل للتواصل؟",
+        "kind": "choice",
+        "choices": [
+          "الهاتف",
+          "البريد الإلكتروني"
+        ],
+        "insufficient_answers": [],
+        "minimum": 1,
+        "maximum": 5,
+        "max_length": 1000,
+        "optional": false,
+        "relevance": "اختيار قناة التواصل المفضلة."
+      },
+      "requirements": {
+        "topic": "اختيار قناة التواصل المفضلة.",
+        "can_skip": false,
+        "format": "one_of",
+        "choices": [
+          "الهاتف",
+          "البريد الإلكتروني"
+        ],
+        "clarification_goal": "Resolve only the ambiguity between the actual choices. Ask politely for a choice when needed; do not request a number.",
+        "acceptance": "An unambiguous choice or its semantic equivalent, normalized to one of the supplied choice strings."
+      },
+      "proposal": {
+        "intent": "clarify",
+        "answer_status": "needs_clarification",
+        "answer_value": null,
+        "action": "stay",
+        "spoken_response": "هل تفضل التواصل عن طريق الهاتف أم البريد الإلكتروني؟ فقط اختر واحد منهم لو سمحت.",
+        "current_question_id": "contact"
+      },
+      "spoken_response": "هل تفضل التواصل عن طريق الهاتف أم البريد الإلكتروني؟ فقط اختر واحد منهم لو سمحت.",
+      "follow_up": "",
+      "accepted": true,
+      "committed": false,
+      "failures": [],
+      "style_assessment": {
+        "passes": true,
+        "issues": []
+      }
+    },
+    {
+      "case": "translated_contact_choice",
+      "customer": "I prefer email",
+      "question": {
+        "id": "contact",
+        "text": "أي قناة تفضّل للتواصل؟",
+        "kind": "choice",
+        "choices": [
+          "الهاتف",
+          "البريد الإلكتروني"
+        ],
+        "insufficient_answers": [],
+        "minimum": 1,
+        "maximum": 5,
+        "max_length": 1000,
+        "optional": false,
+        "relevance": "اختيار قناة التواصل المفضلة."
+      },
+      "requirements": {
+        "topic": "اختيار قناة التواصل المفضلة.",
+        "can_skip": false,
+        "format": "one_of",
+        "choices": [
+          "الهاتف",
+          "البريد الإلكتروني"
+        ],
+        "clarification_goal": "Resolve only the ambiguity between the actual choices. Ask politely for a choice when needed; do not request a number.",
+        "acceptance": "An unambiguous choice or its semantic equivalent, normalized to one of the supplied choice strings."
+      },
+      "proposal": {
+        "intent": "answer",
+        "answer_status": "valid",
+        "answer_value": "البريد الإلكتروني",
+        "action": "next_question",
+        "spoken_response": "تمام، البريد الإلكتروني هو خيارك للتواصل.",
+        "current_question_id": "contact"
+      },
+      "spoken_response": "تمام، البريد الإلكتروني هو خيارك للتواصل. اكتمل الاستبيان، شكراً لوقتك.",
+      "follow_up": "",
+      "accepted": true,
+      "committed": true,
+      "failures": [],
+      "style_assessment": {
+        "passes": true,
+        "issues": []
+      }
+    },
+    {
+      "case": "brief_negative_text",
+      "customer": "التطبيق يعلق",
+      "question": {
+        "id": "app_feedback",
+        "text": "ما ملاحظاتك عن التطبيق؟",
+        "kind": "text",
+        "choices": [],
+        "insufficient_answers": [],
+        "minimum": 1,
+        "maximum": 5,
+        "max_length": 1000,
+        "optional": false,
+        "relevance": "ملاحظة عن استخدام التطبيق أو أدائه."
+      },
+      "requirements": {
+        "topic": "ملاحظة عن استخدام التطبيق أو أدائه.",
+        "can_skip": false,
+        "format": "relevant_text",
+        "max_length": 1000,
+        "clarification_goal": "Ask politely for only the missing detail relevant to this question; do not demand a number or invented choices.",
+        "acceptance": "Relevant feedback may be brief, positive, or negative."
+      },
+      "proposal": {
+        "intent": "answer",
+        "answer_status": "valid",
+        "answer_value": "التطبيق يعلق",
+        "action": "next_question",
+        "spoken_response": "فهمت، التطبيق يعلق عندك. هل عندك ملاحظات إضافية أو تفاصيل أخرى تحب تشاركها؟ إذا لا، ننتقل للسؤال التالي.",
+        "current_question_id": "app_feedback"
+      },
+      "spoken_response": "فهمت عليك. اكتمل الاستبيان، شكراً لوقتك.",
+      "follow_up": "",
+      "accepted": true,
+      "committed": true,
+      "failures": [],
+      "style_assessment": {
+        "passes": true,
+        "issues": []
+      }
+    },
+    {
+      "case": "conditional_details_missing",
+      "customer": "نعم",
+      "question": {
+        "id": "registration",
+        "text": "هل واجهت صعوبة في التسجيل؟ إذا نعم، ما هي؟",
+        "kind": "conditional_text",
+        "choices": [],
+        "insufficient_answers": [
+          "نعم"
+        ],
+        "minimum": 1,
+        "maximum": 5,
+        "max_length": 1000,
+        "optional": false,
+        "relevance": "تفاصيل صعوبة تخص التسجيل أو نفي وجود صعوبة."
+      },
+      "requirements": {
+        "topic": "تفاصيل صعوبة تخص التسجيل أو نفي وجود صعوبة.",
+        "can_skip": false,
+        "format": "relevant_details_or_denial",
+        "max_length": 1000,
+        "clarification_goal": "Ask politely for only the missing detail relevant to this question; do not demand a number or invented choices.",
+        "acceptance": "A clear denial or relevant description satisfies this question. An affirmative without the requested details needs clarification. Unrelated personal details do not satisfy its relevance rules.",
+        "insufficient_answers": [
+          "نعم"
+        ]
+      },
+      "proposal": {
+        "intent": "clarify",
+        "answer_status": "needs_clarification",
+        "answer_value": null,
+        "action": "stay",
+        "spoken_response": "ممكن تخبرني ما هي الصعوبة التي واجهتها في التسجيل؟ فقط التفاصيل المتعلقة بالتسجيل لو سمحت.",
+        "current_question_id": "registration"
+      },
+      "spoken_response": "ممكن تخبرني ما هي الصعوبة التي واجهتها في التسجيل؟ فقط التفاصيل المتعلقة بالتسجيل لو سمحت.",
+      "follow_up": "",
+      "accepted": true,
+      "committed": false,
+      "failures": [],
+      "style_assessment": {
+        "passes": true,
+        "issues": []
+      }
+    },
+    {
+      "case": "consent_company_name",
+      "customer": "من أي شركة قلت لي؟",
+      "question": {
+        "id": "consent",
+        "text": "هل تسمح لنا نبدأ الاستبيان؟",
+        "kind": "consent",
+        "choices": [
+          "نعم",
+          "لا"
+        ],
+        "insufficient_answers": [],
+        "minimum": 1,
+        "maximum": 5,
+        "max_length": 1000,
+        "optional": false,
+        "relevance": "موافقة صريحة على المشاركة."
+      },
+      "requirements": {
+        "topic": "موافقة صريحة على المشاركة.",
+        "can_skip": false,
+        "format": "explicit_permission",
+        "affirmative_value": "نعم",
+        "clarification_goal": "Resolve uncertainty about willingness to participate without pressuring the customer or assuming permission.",
+        "acceptance": "Explicit permission only. A greeting, company question, or unrelated answer does not grant consent. Refusal ends participation."
+      },
+      "proposal": {
+        "intent": "company",
+        "answer_status": "not_answered",
+        "answer_value": null,
+        "action": "stay",
+        "spoken_response": "الجهة التي تنفذ الاستبيان هي شركة المدار. المشاركة اختيارية.",
+        "current_question_id": "consent"
+      },
+      "spoken_response": "الجهة التي تنفذ الاستبيان هي شركة المدار. المشاركة اختيارية.",
+      "follow_up": "نرجع لسؤالنا، هل تسمح لنا نبدأ الاستبيان؟",
+      "accepted": true,
+      "committed": false,
+      "failures": [],
+      "style_assessment": {
+        "passes": true,
+        "issues": []
+      }
+    }
+  ]
+}

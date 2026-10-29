@@ -10,8 +10,11 @@ from pipecat.frames.frames import (
 from pipecat.processors.frame_processor import FrameDirection
 
 from voice_agent.voice.pickup import (
-    PickupGreetingProcessor, PickupOpeningFrame, PickupPlaybackFrame, PickupPlaybackObserver,
+    PickupGreetingProcessor, PickupOpeningFrame,
 )
+
+
+from voice_agent.voice.playback import PlaybackMarkerFrame, PlaybackObserver
 
 
 class PickupTests(unittest.IsolatedAsyncioTestCase):
@@ -28,7 +31,7 @@ class PickupTests(unittest.IsolatedAsyncioTestCase):
             frames.append(frame)
             if isinstance(frame, LLMTextFrame):
                 texts.append(frame.text)
-            elif isinstance(frame, PickupPlaybackFrame):
+            elif isinstance(frame, PlaybackMarkerFrame):
                 markers.append(frame)
                 if autoplay:
                     frame.finished.set()
@@ -150,9 +153,9 @@ class PickupTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(texts, ["السلام عليكم"])
 
     async def test_output_observer_acknowledges_only_played_marker(self):
-        observer = PickupPlaybackObserver()
+        observer = PlaybackObserver()
         observer.push_frame = AsyncMock()
-        marker = PickupPlaybackFrame()
+        marker = PlaybackMarkerFrame()
         self.assertFalse(marker.finished.is_set())
         await observer.process_frame(marker, FrameDirection.DOWNSTREAM)
         self.assertTrue(marker.finished.is_set())

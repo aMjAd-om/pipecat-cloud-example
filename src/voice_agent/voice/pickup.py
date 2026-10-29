@@ -1,6 +1,6 @@
 """Telephone pickup handshake before asking for survey consent."""
 import asyncio
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from loguru import logger
 from pipecat.frames.frames import (
@@ -9,27 +9,12 @@ from pipecat.frames.frames import (
     StartInterruptionFrame, TranscriptionFrame, UserStartedSpeakingFrame, UserStoppedSpeakingFrame,
 )
 from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
+from voice_agent.voice.playback import PlaybackMarkerFrame
 
 
 @dataclass
 class PickupOpeningFrame(ControlFrame):
     pass
-
-
-@dataclass
-class PickupPlaybackFrame(ControlFrame):
-    finished: asyncio.Event = field(default_factory=asyncio.Event)
-
-
-class PickupPlaybackObserver(FrameProcessor):
-    """Acknowledge opening audio after the output transport drains its queue."""
-
-    async def process_frame(self, frame, direction):
-        await super().process_frame(frame, direction)
-        if isinstance(frame, PickupPlaybackFrame) and direction == FrameDirection.DOWNSTREAM:
-            frame.finished.set()
-        else:
-            await self.push_frame(frame, direction)
 
 
 class PickupGreetingProcessor(FrameProcessor):
@@ -56,7 +41,7 @@ class PickupGreetingProcessor(FrameProcessor):
         self._introducing = False
 
     async def _speak(self, text):
-        marker = PickupPlaybackFrame()
+        marker = PlaybackMarkerFrame()
         self._playback_finished = marker.finished
         await self.push_frame(LLMFullResponseStartFrame())
         await self.push_frame(LLMTextFrame(text))

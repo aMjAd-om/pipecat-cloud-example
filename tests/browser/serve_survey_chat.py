@@ -12,9 +12,11 @@ async def decide(messages):
     state = json.loads(messages[1]["content"])
     text = messages[-1]["content"]
     result = dict(intent="off_topic", answer_status="not_answered", answer_value=None,
-                  action="stay", spoken_response="خلّنا نرجع للسؤال الحالي.",
+                  action="stay", spoken_response="هالمعلومة ما تخص تقييم الخدمة.",
                   current_question_id=state["current_question"]["id"])
-    if text == "نعم" and (state.get("pending_confirmation") or {}).get("action") == "skip":
+    if text == "من أي شركة قلت لي؟":
+        result.update(intent="company", spoken_response="من شركة داتامايننج.")
+    elif text == "نعم" and (state.get("pending_confirmation") or {}).get("action") == "skip":
         result.update(intent="skip", action="skip", spoken_response="حاضر.")
     elif text == "ما تعاملت مع الموظفين":
         result.update(intent="skip", answer_status="needs_clarification",

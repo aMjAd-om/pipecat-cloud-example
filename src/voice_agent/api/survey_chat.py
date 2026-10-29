@@ -187,6 +187,9 @@ def create_app(*, decide=None, port=7862, questionnaire_path=None):
                       safe_spoken_text(result.spoken_response, language) if result.spoken_response else "")
             metrics = (dict(manager.metrics[-1]) if manager.metrics and proposal is not None else {})
             record = dict(customer=body.text, spoken_response=spoken, proposed_decision=proposal,
+                          follow_up=(safe_spoken_text(result.follow_up, language)
+                                     if result.reason != "stale" and result.follow_up else ""),
+                          pause_seconds=result.pause_seconds,
                           validation=dict(accepted=result.accepted, committed=result.committed,
                                           reason=result.reason),
                           elapsed_ms=round((time.monotonic() - started) * 1000, 1), metrics=metrics)

@@ -11,8 +11,17 @@ def rating_tokens(text):
              "ثمانية": 8, "تسعة": 9, "عشرة": 10}
     text = re.sub(r"[\u064b-\u065f\u0670]", "", text.lower())
     tokens = re.findall(r"\d+|[^\W\d_]+", text)
-    return [int(t) if t.isdecimal() else words[t] for t in tokens
-            if t.isdecimal() or t in words]
+    numbers = []
+    for token in tokens:
+        if token.isdecimal():
+            numbers.append(int(token))
+        elif token in words:
+            numbers.append(words[token])
+        elif token.startswith(("ل", "ب", "و")) and token[1:] in words:
+            # Count attached Arabic number words too, including both bounds
+            # of a spoken range. A bare yes must not confirm only its first bound.
+            numbers.append(words[token[1:]])
+    return numbers
 
 
 def normalize_answer(text):

@@ -53,11 +53,13 @@ async def main(connection, *, stop_event=None, transport=None):
     rtvi = None if telephone else RTVIProcessor(transport=transport)
     survey_processor = None
     pickup_processor = None
-    pickup_observer = None
+    playback_observer = None
     if os.getenv("SURVEY_CONVERSATION_MANAGER", "false").lower() == "true":
         from voice_agent.conversation import ConversationManager, Questionnaire
         from voice_agent.providers.foundry_llm import FoundryDecisionClient
         from voice_agent.voice.survey import SurveyConversationProcessor
+        from voice_agent.voice.playback import PlaybackObserver
+        playback_observer = PlaybackObserver()
         manager = ConversationManager(
             Questionnaire.load(os.getenv("SURVEY_QUESTIONNAIRE", "questionnaires/customer-satisfaction.ar.json")),
             language=language,
@@ -65,9 +67,8 @@ async def main(connection, *, stop_event=None, transport=None):
         survey_processor = SurveyConversationProcessor(manager, FoundryDecisionClient(
             llm._client, os.environ["AZURE_OPENAI_DEPLOYMENT"]), timing)
         if telephone:
-            from voice_agent.voice.pickup import PickupGreetingProcessor, PickupPlaybackObserver
+            from voice_agent.voice.pickup import PickupGreetingProcessor
             pickup_processor = PickupGreetingProcessor(manager, stop_event)
-            pickup_observer = PickupPlaybackObserver()
     conversation = ([survey_processor] if survey_processor else
                     [aggregator.user(), LatencyProbe(timing, "request"), llm])
     pipeline = Pipeline([
@@ -77,7 +78,7 @@ async def main(connection, *, stop_event=None, transport=None):
         LanguageLockedResponse(language),
         LatencyProbe(timing, "llm"), tts, LatencyProbe(timing, "audio"),
         transport.output(), *([] if survey_processor else [aggregator.assistant()]),
-        *([pickup_observer] if pickup_observer else []),
+        *([playback_observer] if playback_observer else []),
     ])
     task = PipelineTask(pipeline, params=PipelineParams(
         audio_in_sample_rate=16000, audio_out_sample_rate=24000,

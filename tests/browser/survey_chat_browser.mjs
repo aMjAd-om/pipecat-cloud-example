@@ -1,6 +1,6 @@
 import { chromium } from "../../frontend/voice/node_modules/playwright/index.mjs";
 import { spawn } from "node:child_process";
-import { readFile, mkdir } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import assert from "node:assert/strict";
 
 const python = process.platform === "win32" ? ".venv/Scripts/python.exe" : ".venv/bin/python";
@@ -29,7 +29,36 @@ try {
     await page.getByRole("button", {name: "Send reply", exact: true}).click();
     await page.waitForFunction(() => !document.getElementById("send").disabled);
   }
+  // Measure the visible interval in the page, excluding Playwright scheduling.
+  await page.evaluate(() => {
+    window.__reminderTiming = {};
+    const observer = new MutationObserver(records => {
+      for (const record of records) for (const node of record.addedNodes) {
+        if (!(node instanceof Element) || !node.matches(".message.agent")) continue;
+        const text = node.querySelector(".bubble")?.textContent || "";
+        if (text === "من شركة داتامايننج.") window.__reminderTiming.reply = performance.now();
+        if (text.startsWith("نرجع لسؤالنا، ")) {
+          window.__reminderTiming.reminder = performance.now();
+          observer.disconnect();
+        }
+      }
+    });
+    observer.observe(document.getElementById("messages"), {childList: true});
+  });
+  await send("من أي شركة قلت لي؟");
+  assert.equal(await page.locator(".message.agent .bubble").nth(1).textContent(), "من شركة داتامايننج.");
+  await page.waitForFunction(() => [...document.querySelectorAll(".message.agent .bubble")]
+    .some(bubble => bubble.textContent.startsWith("نرجع لسؤالنا، ")));
+  const visiblePause = await page.evaluate(() =>
+    window.__reminderTiming.reminder - window.__reminderTiming.reply);
+  assert(visiblePause >= 950, "Question reminder must wait one second");
+  assert.match(await page.locator(".message.agent .bubble").last().textContent(), /هل تسمح/);
+  await send("من أي شركة قلت لي؟");
   await send("نعم");
+  await new Promise(resolve => setTimeout(resolve, 1100));
+  assert.equal(await page.locator(".message.agent .bubble").evaluateAll(bubbles =>
+    bubbles.filter(bubble => bubble.textContent.startsWith("نرجع لسؤالنا، ")).length), 1,
+    "New customer reply must cancel the older reminder");
   assert.match(await page.locator("#answers").textContent(), /consent/);
   assert.match(await page.locator("#question").textContent(), /بشكل عام/);
   await send("عندي أربعة أطفال");
@@ -47,9 +76,9 @@ try {
   const artifact = await downloaded;
   const data = JSON.parse(await readFile(await artifact.path(), "utf8"));
   assert.equal(data.state.answers.overall_rating, 4);
-  assert.equal(data.records.length, 6);
-  await mkdir(".cache", {recursive: true});
-  await page.screenshot({path: ".cache/survey-chat-preview.png", fullPage: true});
+  assert.equal(data.records.length, 8);
+  if (process.env.CHAT_TEST_SCREENSHOT)
+    await page.screenshot({path: process.env.CHAT_TEST_SCREENSHOT, fullPage: true});
   await page.getByRole("button", {name: "New conversation"}).click();
   await page.getByText("Ready for customer reply", {exact: true}).waitFor();
   assert.equal(await page.locator("#messages .bubble").count(), 1);
@@ -65,7 +94,7 @@ try {
   assert.match(await page.locator("#question").textContent(), /صعوبات/);
   assert.doesNotMatch(await page.locator("#answers").textContent(), /staff_experience/);
   assert.deepEqual(pageErrors, []);
-  console.log("PASS chat greeting, consent, off-topic, rating, pause/resume, safe rendering, export, reset and confirmed skip");
+  console.log("PASS contextual company reply, delayed reminder, reminder cancellation, consent, ratings, pause/resume, safe rendering, export, reset and confirmed skip");
 } finally {
   if (browser) await browser.close();
   server.kill();
