@@ -56,7 +56,8 @@ class ConversationManager:
                      answered_question_ids=list(self.answers),
                      answered_questions=[q.model_dump() for q in self.questionnaire.questions
                                          if q.id in self.answers],
-                     authorized_information=self.questionnaire.authorized_information)
+                     authorized_information=self.questionnaire.authorized_information,
+                     wrong_recipient_response=self.questionnaire.wrong_recipient_response)
         return Snapshot(self.session_id, self.version, self.question.id, [
             {"role": "system", "content": PROMPT},
             {"role": "system", "content": json.dumps(state, ensure_ascii=False)},
@@ -108,6 +109,11 @@ class ConversationManager:
                     or any(q.id == d.answer_value and q.kind == "consent"
                            for q in self.questionnaire.questions)):
                 return "invalid_correction"
+            return None
+        if d.intent == "wrong_recipient":
+            if (not self.questionnaire.wrong_recipient_response or d.action != "finish"
+                    or d.answer_status != "not_answered" or d.answer_value is not None):
+                return "invalid_wrong_recipient"
             return None
         if d.action == "next_question":
             if self.paused or d.intent != "answer" or d.answer_status != "valid":
@@ -244,7 +250,10 @@ class ConversationManager:
                 text += " " + self.question.text
             elif d.action == "finish":
                 self.cancelled = True
-                text = self.questionnaire.cancellation_response or self._say(
+                self.pending_clarification = None
+                self.pending_confirmation = None
+                text = (self.questionnaire.wrong_recipient_response if d.intent == "wrong_recipient"
+                        else self.questionnaire.cancellation_response) or self._say(
                     "تم إلغاء الاستبيان. شكراً لوقتك.",
                     "The survey is cancelled. Thank you for your time.")
             self._remember(utterance, text)
@@ -254,7 +263,7 @@ class ConversationManager:
                     and not self.paused and not self.completed and not self.cancelled):
                 follow_up = self._say("نرجع لسؤالنا، ", "Let's return to the question: ") + self.question.text
             return Result(True, text, "accepted", committed, follow_up,
-                          1.0 if follow_up else 0.0)
+                          1.0 if follow_up else 0.0, end_call=d.intent == "wrong_recipient")
 
     async def turn(self, event_id, utterance, decide, *, snapshot=None):
         # IDs identify recognition events, never transcript text: repeated 'four'

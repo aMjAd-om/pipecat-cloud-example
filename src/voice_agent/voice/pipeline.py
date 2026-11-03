@@ -65,7 +65,7 @@ async def main(connection, *, stop_event=None, transport=None):
             language=language,
         )
         survey_processor = SurveyConversationProcessor(manager, FoundryDecisionClient(
-            llm._client, os.environ["AZURE_OPENAI_DEPLOYMENT"]), timing)
+            llm._client, os.environ["AZURE_OPENAI_DEPLOYMENT"]), timing, stop_event=stop_event)
         if telephone:
             from voice_agent.voice.pickup import PickupGreetingProcessor
             pickup_processor = PickupGreetingProcessor(manager, stop_event)

@@ -37,6 +37,7 @@ class Questionnaire(BaseModel):
     introduction: str = Field(default="", max_length=4000)
     closing: str = Field(default="", max_length=4000)
     cancellation_response: str = Field(default="", max_length=1000)
+    wrong_recipient_response: str = Field(default="", max_length=1000)
 
     @model_validator(mode="after")
     def unique_ids(self):
@@ -54,7 +55,7 @@ class Questionnaire(BaseModel):
 class Decision(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
     intent: Literal["answer", "clarify", "off_topic", "identity", "company",
-                    "repeat", "skip", "pause", "resume", "cancel", "correct_previous"]
+                    "repeat", "skip", "pause", "resume", "cancel", "wrong_recipient", "correct_previous"]
     answer_status: Literal["valid", "invalid", "not_answered", "needs_clarification"]
     answer_value: int | str | None
     action: Literal["stay", "next_question", "repeat", "skip", "pause", "resume", "finish"]
@@ -88,3 +89,4 @@ class Result:
     committed: bool = False
     follow_up: str = ""
     pause_seconds: float = 0.0
+    end_call: bool = False

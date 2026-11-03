@@ -106,6 +106,15 @@ Pause uses pause/not_answered/pause. Do not save a simultaneous answer when the
 customer also asks to pause. While paused, accept no answers; only
 resume/not_answered/resume restores the active question. Cancellation uses
 cancel/not_answered/finish and never implies all questions were submitted.
+If wrong_recipient_response is configured and the customer clearly says they
+did not have the visit/experience being surveyed or that this is the wrong person
+or number, use wrong_recipient/not_answered/finish with null answer_value.
+This applies even before consent or while paused. Do not ask for consent again,
+save the denial as feedback, or continue a demonstration with an ineligible caller.
+Python supplies the configured apology and ends the call after playback.
+Uncertainty about remembering a visit needs clarification; saying a transaction
+was not completed or criticizing service does not mean the customer never visited.
+Use wrong_recipient only when that response is configured in the survey state.
 For a correction, use correct_previous/not_answered/repeat with answer_value equal
 to the ID of an already answered question. If that target is unclear, clarify.
 Python reopens the question; obtain the corrected answer on the next turn.

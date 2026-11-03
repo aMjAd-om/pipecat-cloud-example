@@ -17,10 +17,13 @@ class SurveyOpeningFrame(ControlFrame):
 
 
 class SurveyConversationProcessor(FrameProcessor):
-    def __init__(self, manager, decide, timing):
+    def __init__(self, manager, decide, timing, *, stop_event=None):
         super().__init__()
         self.manager, self.decide, self.timing = manager, decide, timing
         self._follow_up_task = None
+        self._stop_event = stop_event
+        self._end_call_task = None
+        self._ending_call = False
 
     async def queue_frame(self, frame, direction=FrameDirection.DOWNSTREAM, callback=None):
         if isinstance(frame, TranscriptionFrame) and direction == FrameDirection.DOWNSTREAM:
@@ -47,6 +50,8 @@ class SurveyConversationProcessor(FrameProcessor):
         elif isinstance(frame, SurveyOpeningFrame):
             await self._speak(self.manager.opening())
         elif isinstance(frame, TranscriptionFrame):
+            if self._ending_call:
+                return
             self.timing.mark("llm_start")
             for key in ("llm_first", "llm_end", "tts_start", "tts_first", "output"):
                 self.timing.stamps.pop(key, None)
@@ -56,13 +61,28 @@ class SurveyConversationProcessor(FrameProcessor):
             # An interrupted request must not speak after a newer user turn.
             if result.reason != "stale":
                 await self._speak(result.spoken_response)
-                if result.follow_up:
+                if result.end_call:
+                    self._ending_call = True
+                    marker = PlaybackMarkerFrame()
+                    await self.push_frame(marker)
+                    self._end_call_task = asyncio.create_task(self._end_call(marker))
+                elif result.follow_up:
                     marker = PlaybackMarkerFrame()
                     await self.push_frame(marker)
                     self._follow_up_task = asyncio.create_task(self._follow_up(
                         result, marker, self.manager.version, self.manager.question.id))
         else:
             await self.push_frame(frame, direction)
+
+    async def _end_call(self, marker):
+        try:
+            await asyncio.wait_for(marker.finished.wait(), 30)
+        except asyncio.TimeoutError:
+            pass  # Release the call even if synthesis/playback never acknowledges it.
+        if self._stop_event is not None:
+            self._stop_event.set()
+        else:
+            await self.push_frame(EndFrame())
 
     async def _follow_up(self, result, marker, version, question_id):
         try:
@@ -83,5 +103,8 @@ class SurveyConversationProcessor(FrameProcessor):
 
     async def cleanup(self):
         await self._cancel_follow_up()
+        if self._end_call_task and not self._end_call_task.done():
+            self._end_call_task.cancel()
+            await asyncio.gather(self._end_call_task, return_exceptions=True)
         self.manager.clear()
         await super().cleanup()

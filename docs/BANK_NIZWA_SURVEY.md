@@ -34,3 +34,17 @@ such as `ثلاثة`, and closes with:
 Participation is voluntary; consent is required and each feedback question can
 be skipped. The demo does not request banking credentials or promise to send
 feedback to the bank. Existing survey examples remain available.
+
+The calling company is شركة داتامايننج. A company-name question such as
+`من أي شركة تتصلون؟` should receive the short answer `نتصل من شركة داتامايننج.`
+The bank is the subject of the survey, not the caller.
+
+A clear denial of visiting the bank (`ما زرت البنك`) or a wrong-person/number
+statement ends the survey, including before consent. The agent says:
+
+> السموحة منك، يبدو إن الاتصال صار بالخطأ. نعتذر على الإزعاج، وشكراً على وقتك. يومك سعيد.
+
+No survey answer is saved for that turn and no question reminder follows. Voice
+calls close after the apology finishes playing (with a 30-second playback timeout).
+The text lab marks the conversation cancelled. An uncertain recollection needs
+clarification; an unfinished transaction is still a valid visit.
