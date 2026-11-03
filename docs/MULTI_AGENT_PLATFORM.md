@@ -130,7 +130,9 @@ than replace the manager's authoritative validation.
 
 For informational company/identity/off-topic turns, the response renderer removes
 exact question replays (including an added `هل`) and question sentences. The manager
-owns the separate timed reminder. Genuine missing-answer clarifications retain their
+only schedules a separate timed reminder for unrelated non-answer turns. Caller
+identity, purpose, company and interaction questions get one direct reply, followed
+by waiting for the customer with the active question unchanged. Genuine missing-answer clarifications retain their
 questions. Live reports record raw model question violations separately, so rendering
 repairs are visible rather than counted as correct raw model wording.
 

@@ -22,8 +22,8 @@ class FollowUpTests(unittest.IsolatedAsyncioTestCase):
         await asyncio.wait_for(wait(), 2)
 
     def proposal(self, manager, **changes):
-        return decision(manager.question.id, intent="company", answer_status="not_answered",
-                        answer_value=None, action="stay", **changes)
+        return decision(manager.question.id, **dict(intent="company", answer_status="not_answered",
+                        answer_value=None, action="stay") | changes)
 
     async def test_same_intent_keeps_distinct_contextual_answers_and_question(self):
         manager = prepared(1)
@@ -33,8 +33,8 @@ class FollowUpTests(unittest.IsolatedAsyncioTestCase):
             result = await manager.turn(str(index), "من أي شركة؟", model(self.proposal(
                 manager, spoken_response=reply)))
             self.assertEqual(result.spoken_response, reply)
-            self.assertEqual(result.follow_up, "نرجع لسؤالنا، " + manager.question.text)
-            self.assertEqual(result.pause_seconds, 1.0)
+            self.assertEqual(result.follow_up, "")
+            self.assertEqual(result.pause_seconds, 0.0)
             self.assertFalse(result.committed)
             self.assertEqual(manager.question.id, question)
             self.assertEqual(manager.answers, saved)
@@ -43,18 +43,18 @@ class FollowUpTests(unittest.IsolatedAsyncioTestCase):
         manager = prepared()
         result = await manager.turn("company", "من أي شركة قلت لي؟", model(self.proposal(
             manager, spoken_response="من شركة داتامايننج.")))
-        self.assertIn(manager.question.text, result.follow_up)
+        self.assertEqual(result.follow_up, "")
         self.assertEqual(manager.question.id, "consent")
         self.assertEqual(manager.answers, {})
 
-    async def test_exact_question_copy_is_removed_from_direct_answer_before_timed_return(self):
+    async def test_exact_question_copy_is_removed_without_a_timed_return(self):
         manager = prepared()
         reply = "من شركة داتامايننج."
         result = await manager.turn("company", "من أي شركة؟", model(self.proposal(
             manager, spoken_response=reply + " " + manager.question.text)))
         self.assertEqual(result.spoken_response, reply)
-        self.assertEqual(result.follow_up.count(manager.question.text), 1)
-        self.assertEqual(result.pause_seconds, 1.0)
+        self.assertEqual(result.follow_up, "")
+        self.assertEqual(result.pause_seconds, 0.0)
         self.assertEqual(manager.answers, {})
 
     async def test_paused_survey_and_pending_clarification_have_no_reminder(self):
@@ -72,14 +72,15 @@ class FollowUpTests(unittest.IsolatedAsyncioTestCase):
 
     def voice_processor(self):
         manager = prepared(1)
-        decide = model(self.proposal(manager, spoken_response="من شركة داتامايننج."))
+        decide = model(self.proposal(manager, intent="off_topic",
+                                    spoken_response="هالمعلومة ما تخص تقييم الخدمة."))
         processor = SurveyConversationProcessor(manager, decide, TurnTiming())
         processor.push_frame = AsyncMock()
         self.addAsyncCleanup(processor.cleanup)
         return processor
 
-    async def ask_company(self, processor):
-        await processor.process_frame(TranscriptionFrame("من أي شركة؟", "caller", "company"),
+    async def ask_unrelated(self, processor):
+        await processor.process_frame(TranscriptionFrame("كيف الجو اليوم؟", "caller", "unrelated"),
                                       FrameDirection.DOWNSTREAM)
         return next(call.args[0] for call in processor.push_frame.call_args_list
                     if isinstance(call.args[0], PlaybackMarkerFrame))
@@ -90,29 +91,41 @@ class FollowUpTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_voice_waits_for_playback_then_one_second_before_reminder(self):
         processor = self.voice_processor()
-        marker = await self.ask_company(processor)
+        marker = await self.ask_unrelated(processor)
         await asyncio.sleep(.04)
-        self.assertEqual(self.spoken(processor), ["من شركة داتامايننج."])
+        self.assertEqual(self.spoken(processor), ["هالمعلومة ما تخص تقييم الخدمة."])
         started = time.monotonic()
         marker.finished.set()
         await self.wait_until(lambda: len(self.spoken(processor)) == 2)
         self.assertGreaterEqual(time.monotonic() - started, .95)
-        self.assertEqual(self.spoken(processor)[1], "نرجع لسؤالنا، " + processor.manager.question.text)
+        self.assertEqual(self.spoken(processor)[1], processor.manager.question.text)
 
     async def test_caller_speech_cancels_pending_reminder(self):
         processor = self.voice_processor()
-        marker = await self.ask_company(processor)
+        marker = await self.ask_unrelated(processor)
         pending = processor._follow_up_task
         marker.finished.set()
         await asyncio.sleep(.02)
         await processor.process_frame(UserStartedSpeakingFrame(), FrameDirection.DOWNSTREAM)
         self.assertTrue(pending.cancelled())
-        self.assertEqual(self.spoken(processor), ["من شركة داتامايننج."])
+        self.assertEqual(self.spoken(processor), ["هالمعلومة ما تخص تقييم الخدمة."])
 
     async def test_stale_state_suppresses_reminder(self):
         processor = self.voice_processor()
-        marker = await self.ask_company(processor)
+        marker = await self.ask_unrelated(processor)
         processor.manager.interrupt()
         marker.finished.set()
         await asyncio.wait_for(processor._follow_up_task, 2)
-        self.assertEqual(self.spoken(processor), ["من شركة داتامايننج."])
+        self.assertEqual(self.spoken(processor), ["هالمعلومة ما تخص تقييم الخدمة."])
+
+    async def test_voice_identity_and_purpose_reply_once_without_scheduling_reminder(self):
+        for intent, reply in (("identity", "معك المساعد الذكي من شركة داتامايننج."),
+                              ("company", "نتواصل عشان نعرف رأيك في زيارتك لبنك نزوى.")):
+            processor = self.voice_processor()
+            processor.decide = model(self.proposal(processor.manager, intent=intent, spoken_response=reply))
+            await processor.process_frame(TranscriptionFrame("من معي؟" if intent == "identity" else "ليش تتصل؟",
+                                          "caller", intent), FrameDirection.DOWNSTREAM)
+            self.assertEqual(self.spoken(processor), [reply])
+            self.assertIsNone(processor._follow_up_task)
+            self.assertFalse(any(isinstance(call.args[0], PlaybackMarkerFrame)
+                                 for call in processor.push_frame.call_args_list))

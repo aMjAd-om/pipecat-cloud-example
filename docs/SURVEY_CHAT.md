@@ -1,10 +1,12 @@
 # Local survey conversation lab
 
-After a company/identity question or another accepted non-answer, the lab displays
-the direct reply, waits one second, then separately returns to the current survey
-question. Sending another reply, interrupting, or starting a new conversation
-cancels the older reminder. Exported turn records include `follow_up` and
-`pause_seconds` separately from the model's `spoken_response`.
+After a caller asks about identity, calling purpose, company or visit details, the
+lab answers that concern and waits. It keeps the consent/current-question state
+without automatically asking again. Identity explains who is speaking; purpose
+explains why feedback is requested; only a company-name question needs just the name.
+Unrelated non-answer turns can still have a separate delayed question reminder.
+Another reply, interruption or new conversation cancels that reminder. Exported
+turn records keep `follow_up` and `pause_seconds` separate from `spoken_response`.
 
 Test the Arabic survey by typing what a customer would say. The page uses the same `ConversationManager`, questionnaire, five-section prompt, strict model schema, `FoundryDecisionClient`, and final language check used for phone calls. No STT, TTS, microphone, Asterisk, or WebRTC connection is required.
 

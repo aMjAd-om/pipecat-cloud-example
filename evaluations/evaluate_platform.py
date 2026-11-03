@@ -7,10 +7,10 @@ from pathlib import Path
 import statistics
 import time
 
-from evaluations.cases.platform_cases import CASES, JOURNEY
+from evaluations.cases.platform_cases import CASES, JOURNEY, CALLER_QUESTIONS
 from voice_agent.agents.models import SessionSelection
-from voice_agent.agents.runtime import create_runtime
-from voice_agent.conversation import Decision
+from voice_agent.agents.runtime import create_runtime, AgentRuntime
+from voice_agent.conversation import Decision, ConversationManager, Questionnaire
 from voice_agent.conversation.language import speech_matches_language
 
 
@@ -50,12 +50,15 @@ async def evaluate(output, interval):
                 intent=(not expected.get("intent") or bool(proposal and proposal["intent"] == expected["intent"])),
                 tool_selection=metrics.get("tool_calls", 0) == expected.get("tools", 0),
                 context_facts=all(s in result.spoken_response for s in expected.get("contains", [])),
+                relevant_meaning=all(any(s in result.spoken_response for s in group)
+                                    for group in expected.get("contains_any", [])),
                 no_unrelated_facts=all(s not in result.spoken_response for s in expected.get("excludes", [])),
                 arabic=speech_matches_language(result.spoken_response, "ar"))
-            if expected.get("intent") == "company":
+            if expected.get("intent") in ("company", "identity"):
                 raw_no_extra_question = bool(proposal and
                     not any(mark in proposal["spoken_response"] for mark in ("?", "؟")))
                 checks["no_extra_question"] = not any(mark in result.spoken_response for mark in ("?", "؟"))
+                checks["no_automatic_reminder"] = not result.follow_up
             if "value" in expected:
                 checks["value"] = bool(proposal and (isinstance(proposal["answer_value"], str)
                     if expected["value"] == "TEXT" else proposal["answer_value"] == expected["value"]))
@@ -78,6 +81,12 @@ async def evaluate(output, interval):
             if index > 1:
                 runtime.manager.answers["overall_rating"] = 3
             await run(runtime, case["name"], case["text"], case)
+        for mode in ("registered", "legacy"):
+            runtime = (create_runtime(SessionSelection(agent_id="bank_feedback")) if mode == "registered"
+                       else AgentRuntime(ConversationManager(Questionnaire.load("questionnaires/bank-nizwa.ar.json"))))
+            bound = runtime.decision_client(client, os.environ["AZURE_OPENAI_DEPLOYMENT"])
+            for i, case in enumerate(CALLER_QUESTIONS):
+                await run(runtime, f"{mode}_caller_sequence_{i}", case["text"], case, bound)
         runtime = create_runtime(SessionSelection(agent_id="bank_feedback", mock_customer_id="demo-ahmed"))
         bound = runtime.decision_client(client, os.environ["AZURE_OPENAI_DEPLOYMENT"])
         for i, (text, value) in enumerate(JOURNEY):

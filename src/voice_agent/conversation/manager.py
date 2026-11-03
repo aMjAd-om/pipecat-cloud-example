@@ -268,9 +268,9 @@ class ConversationManager:
             self._remember(utterance, text)
             follow_up = ""
             if (d.action == "stay" and d.answer_status == "not_answered"
-                    and d.intent in ("company", "identity", "off_topic", "clarify")
+                    and d.intent in ("off_topic", "clarify")
                     and not self.paused and not self.completed and not self.cancelled):
-                follow_up = self._say("نرجع لسؤالنا، ", "Let's return to the question: ") + self.question.text
+                follow_up = self.question.text
             return Result(True, text, "accepted", committed, follow_up,
                           1.0 if follow_up else 0.0, end_call=(d.intent == "wrong_recipient" or
                           (self.end_call_on_finish and (self.cancelled or self.completed))))
@@ -310,7 +310,11 @@ class ConversationManager:
                 "facts; Python handles the separate return to the question. For transitions, "
                 "Python supplies the exact next question. Preserve the action/status contract "
                 "and distinguish confirmation of a pending action from an answer. "
-                "A question about which interaction/visit, branch, date or caller is "
+                "Who is speaking uses identity/not_answered/stay and identifies the "
+                "assistant's role, not only the company. Why are you calling uses "
+                "company/not_answered/stay and explains the actual calling purpose. "
+                "Only a company-name question needs just the organization name. "
+                "A question about which interaction/visit, branch or date is "
                 "company/not_answered/stay with null answer_value. Answer from runtime "
                 "context even before consent; permission is needed to collect survey "
                 "answers, not to explain the call. Do not append a consent question. "

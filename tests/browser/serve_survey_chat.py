@@ -14,7 +14,11 @@ async def decide(messages):
     result = dict(intent="off_topic", answer_status="not_answered", answer_value=None,
                   action="stay", spoken_response="هالمعلومة ما تخص تقييم الخدمة.",
                   current_question_id=state["current_question"]["id"])
-    if text == "من أي شركة قلت لي؟":
+    if text == "من معي؟":
+        result.update(intent="identity", spoken_response="معك المساعد الذكي من شركة داتامايننج.")
+    elif text == "ليش تتصل؟":
+        result.update(intent="company", spoken_response="نتواصل عشان نعرف رأيك في تجربتك مع الخدمة.")
+    elif text == "من أي شركة قلت لي؟":
         result.update(intent="company", spoken_response="من شركة داتامايننج.")
     elif text == "نعم" and (state.get("pending_confirmation") or {}).get("action") == "skip":
         result.update(intent="skip", action="skip", spoken_response="حاضر.")

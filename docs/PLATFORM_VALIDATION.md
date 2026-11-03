@@ -8,17 +8,17 @@ Real audio validation and human review of Arabic wording remain separate checks.
 |---|---|
 | Phase 1 configuration/context + legacy regression subset | 50 tests passed |
 | Phase 2 tools/provider + legacy regression subset | 36 tests passed |
-| Final full offline suite | 144 tests run: 143 passed, 1 existing Linux-only signal test skipped on Windows |
+| Final full offline suite | 145 tests run: 144 passed, 1 existing Linux-only signal test skipped on Windows |
 | Real browser text-lab regression | Passed, including agent/survey/customer selection and isolation |
 | Voice frontend build and text-lab JavaScript syntax | Passed |
 | Offline wheel build | Passed; both agents' JSON/prompts and synthetic context included |
 | Diff whitespace checks | Passed |
 | Initial live synthetic Azure evaluation | 5/16 checks passed; complete Bank Nizwa journey did not finish |
-| Final live synthetic Azure evaluation | 16/16 functional scenarios passed; complete Bank Nizwa journey finished |
-| Final live text/model latency | Median 1250 ms, maximum 2296 ms; excludes STT/TTS and the real audio/network path |
-| Final live optional retrieval | Approved visit handler invoked once for additional history; two model requests, 2296 ms total |
+| Final live synthetic Azure evaluation | 24/24 functional scenarios passed, including distinct identity/purpose/company replies in registered and legacy modes; complete Bank Nizwa journey finished |
+| Final live text/model latency | Median 1328 ms, maximum 3094 ms; excludes STT/TTS and the real audio/network path |
+| Final live optional retrieval | Approved visit handler invoked once for additional history; two model requests, 2359 ms total |
 | Final live common turns | One model request each; no unnecessary retrieval requests |
-| Raw vs rendered informational replies | Two raw replies appended questions; production rendering removed them. All six rendered informational replies passed the no-extra-question check |
+| Raw vs rendered informational replies | Four raw replies appended questions; production rendering removed them. All fourteen rendered informational replies passed the no-extra-question and no-automatic-reminder checks |
 
 Offline coverage includes registry validation (missing prompt/survey, unknown
 agent/tool/workflow, invalid configuration), context isolation, tool registration,
@@ -37,7 +37,10 @@ finished while caller speech cancelled a task waiting through `asyncio.wait_for`
 the reminder could survive cancellation. The playback wait now uses
 `asyncio.timeout`, and both the targeted regression and final full suite passed.
 
-The final live report is `evaluations/results/platform_evaluation.json`. Earlier
+The latest live report is `evaluations/results/caller_questions_evaluation.json`.
+It adds the reported `من معي؟` → `ليش تتصل؟` sequence and a company-name question
+in both registered and legacy Bank Nizwa modes. The former 16-case report remains
+at `evaluations/results/platform_evaluation.json`. Earlier
 reports are retained as `.initial.json` (5/16), `.protocol.json` (11/16), and
 `.semantic.json` (13/16), documenting the fixes rather than hiding failed runs.
 Reports contain only synthetic inputs/outputs and safe metrics, not credentials
@@ -62,8 +65,11 @@ Shared guidance now separates pre-consent explanations from answer collection,
 clarifies that declining an out-of-scope request is not the customer refusing the
 survey, and specifies the correction contract. The bank prompt distinguishes the
 current preloaded visit from additional history available through its approved
-tool. Direct-response rendering removes model-generated question reminders before
-the manager schedules its own. The evaluator records raw model violations alongside
+tool. Direct-response rendering removes model-generated question reminders. Identity,
+purpose, company and visit explanations now wait for a new customer turn with the
+current question/consent unchanged; they never schedule another consent prompt.
+Remaining unrelated-turn reminders repeat the question without the robotic
+`نرجع لسؤالنا` prefix. The evaluator records raw model violations alongside
 the final rendered speech; passing functional output does not imply perfect raw
 wording. A failed journey now stops before sending answers to the wrong question.
 

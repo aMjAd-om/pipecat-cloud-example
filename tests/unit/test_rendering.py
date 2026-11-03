@@ -14,7 +14,7 @@ class DirectReplyTests(unittest.IsolatedAsyncioTestCase):
             action='stay', spoken_response=text)))
         self.assertEqual(manager.answers, {})
         self.assertEqual(manager.question.id, 'consent')
-        self.assertEqual(result.follow_up.count(manager.question.text), 1)
+        self.assertEqual(result.follow_up, '')
         return result.spoken_response
 
     async def test_exact_question_with_interrogative_prefix_does_not_leave_fragment(self):
