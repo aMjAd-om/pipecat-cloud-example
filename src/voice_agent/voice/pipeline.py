@@ -21,25 +21,34 @@ from voice_agent.observability.timing import LatencyProbe, TurnTiming
 from voice_agent.voice.language import LanguageLockedResponse
 
 
-async def main(connection, *, stop_event=None, transport=None):
+async def main(connection, *, stop_event=None, transport=None, runtime=None):
     telephone = transport is not None
     if telephone and stop_event is None:
         stop_event = asyncio.Event()
     language = os.getenv("DEFAULT_LANGUAGE", "ar")
+    survey_enabled = (runtime is not None or os.getenv("AGENT_ID") or
+                      os.getenv("SURVEY_CONVERSATION_MANAGER", "false").lower() == "true")
+    if survey_enabled:
+        from voice_agent.agents.runtime import create_runtime
+        runtime = runtime or create_runtime()
+        language = runtime.manager.language
     timing = TurnTiming()
     transport = transport or SmallWebRTCTransport(connection, TransportParams(
         audio_in_enabled=True, audio_out_enabled=True,
         audio_in_sample_rate=16000, audio_out_sample_rate=24000,
         vad_analyzer=SileroVADAnalyzer(),
     ))
-    stt = StreamingAzureSTT(timing=timing)
+    speech_options = ({"language": runtime.config.language} if runtime and runtime.config else {})
+    stt = StreamingAzureSTT(timing=timing, **speech_options)
     llm = FoundryLLMService(
         api_key=os.environ["AZURE_OPENAI_API_KEY"],
         base_url=os.environ["AZURE_OPENAI_BASE_URL"],
         model=os.environ["AZURE_OPENAI_DEPLOYMENT"],
         params=OpenAILLMService.InputParams(temperature=0.2, max_tokens=150),
     )
-    tts = create_tts(timing=timing)
+    tts_options = ({"language": language, "preferences": runtime.config.voice}
+                   if runtime and runtime.config else {})
+    tts = create_tts(timing=timing, **tts_options)
     context = OpenAILLMContext([{"role": "system", "content": (
         "You are a friendly voice assistant. "
         "The session language is fixed to " + language + ". "
@@ -54,17 +63,12 @@ async def main(connection, *, stop_event=None, transport=None):
     survey_processor = None
     pickup_processor = None
     playback_observer = None
-    if os.getenv("SURVEY_CONVERSATION_MANAGER", "false").lower() == "true":
-        from voice_agent.conversation import ConversationManager, Questionnaire
-        from voice_agent.providers.foundry_llm import FoundryDecisionClient
+    if survey_enabled:
         from voice_agent.voice.survey import SurveyConversationProcessor
         from voice_agent.voice.playback import PlaybackObserver
         playback_observer = PlaybackObserver()
-        manager = ConversationManager(
-            Questionnaire.load(os.getenv("SURVEY_QUESTIONNAIRE", "questionnaires/customer-satisfaction.ar.json")),
-            language=language,
-        )
-        survey_processor = SurveyConversationProcessor(manager, FoundryDecisionClient(
+        manager = runtime.manager
+        survey_processor = SurveyConversationProcessor(manager, runtime.decision_client(
             llm._client, os.environ["AZURE_OPENAI_DEPLOYMENT"]), timing, stop_event=stop_event)
         if telephone:
             from voice_agent.voice.pickup import PickupGreetingProcessor

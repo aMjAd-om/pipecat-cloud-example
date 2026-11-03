@@ -1,0 +1,11 @@
+{
+  "agent_id": "municipality_complaints",
+  "name": "Municipality complaint follow-up (demo)",
+  "description": "Synthetic complaint follow-up, with no municipality integration.",
+  "prompt_file": "prompt.md",
+  "workflow_type": "survey",
+  "survey_id": "municipality-follow-up.ar",
+  "language": "ar-OM",
+  "tools": [],
+  "context": ["customer_profile", "recent_interaction", "call"]
+}

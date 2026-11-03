@@ -7,9 +7,11 @@ import os
 import secrets
 import time
 from typing import Literal
-from fastapi import HTTPException, Request, Response
+from fastapi import Body, HTTPException, Request, Response
 from pydantic import BaseModel, ConfigDict, Field
 from pipecat.transports.network.webrtc_connection import IceServer
+from voice_agent.agents.models import SessionSelection
+from voice_agent.agents.runtime import catalog
 
 
 def configured_ice_servers():
@@ -44,12 +46,23 @@ def register_signaling_routes(app, sessions):
         return {"status": "ok", "sessions": len(sessions.items)}
 
     @app.post("/api/sessions")
-    async def create(request: Request, response: Response):
-        session = sessions.create()
+    async def create(request: Request, response: Response, payload: SessionSelection | None = Body(default=None)):
+        if payload and any(payload.model_dump().values()) and os.getenv("DEMO_TESTING_ENABLED", "false").lower() != "true":
+            raise HTTPException(403, "Test selection is disabled")
+        try:
+            session = sessions.create(payload)
+        except (ValueError, OSError):
+            raise HTTPException(400, "Invalid agent, survey, or demo customer selection") from None
         response.set_cookie("voice_session", session.token, httponly=True,
                             secure=request.url.scheme == "https", samesite="strict",
                             max_age=sessions.max_age, path=f"/api/sessions/{session.id}")
-        return {"id": session.id, "iceServers": session.ice}
+        return {"id": session.id, "iceServers": session.ice,
+                "selection": session.runtime.public() if session.runtime else None}
+
+    @app.get("/api/agents")
+    async def agents():
+        enabled = os.getenv("DEMO_TESTING_ENABLED", "false").lower() == "true"
+        return {"enabled": enabled, **(catalog() if enabled else {})}
 
     @app.post("/api/sessions/{sid}/offer")
     async def offer(sid: str, payload: Offer, request: Request):

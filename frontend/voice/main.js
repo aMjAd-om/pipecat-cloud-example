@@ -6,12 +6,41 @@ logger.setLevel(LogLevel.ERROR);
 const el = id => document.getElementById(id);
 let client, transport, sessionId, started, busy = false, stopping = false;
 let generation = 0;
+let agentCatalog = null;
+function options(id, values) {
+  el(id).replaceChildren(...values.map(([value, label]) => new Option(label, value)));
+}
+function updateSelection() {
+  const agent = agentCatalog?.agents.find(a => a.agent_id === el("agent-select").value);
+  options("survey-select", [["", "Agent/server default"], ...(agent?.surveys ?? agentCatalog?.surveys ?? []).map(s => [s, s])]);
+  options("customer-select", [["", "No customer metadata"], ...(agent?.customers ?? []).map(c => [c.id, c.label])]);
+}
+function selection() {
+  if (!agentCatalog) return {};
+  return Object.fromEntries([["agent_id", el("agent-select").value], ["survey_id", el("survey-select").value],
+    ["mock_customer_id", el("customer-select").value]].filter(([, value]) => value));
+}
+el("agent-select").addEventListener("change", updateSelection);
+(async () => {
+  try {
+    const response = await fetch("/api/agents");
+    if (!response.ok) return;
+    const data = await response.json();
+    if (!data.enabled) return;
+    agentCatalog = data;
+    options("agent-select", [["", "Server default"], ...data.agents.map(a => [a.agent_id, a.name])]);
+    el("agent-select").value = data.default_agent_id;
+    updateSelection();
+    el("test-selection").hidden = false;
+  } catch { /* Voice controls remain available when test selection is unavailable. */ }
+})();
 function status(text) { el("status").textContent = text; }
 function buttons(connected = false) {
   el("start").disabled = busy || connected;
   el("stop").disabled = !client && !busy;
   el("mute").disabled = !connected;
   document.body.dataset.connected = String(connected);
+  for (const id of ["agent-select", "survey-select", "customer-select"]) el(id).disabled = busy || connected;
 }
 async function release() {
   if (stopping) return;
@@ -40,10 +69,13 @@ el("start").addEventListener("click", async () => {
   try {
     if (!window.isSecureContext) throw new Error("Microphone access requires HTTPS or localhost.");
     const response = await fetch("/api/sessions", {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: "{}",
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(selection()),
     });
     if (!response.ok) throw new Error((await response.json()).detail || "Unable to start a session.");
     const session = await response.json();
+    el("active-task").textContent = session.selection
+      ? `${session.selection.agent_name} · ${session.selection.survey_id ?? "Configured survey"}${session.selection.demo ? " · Demo data" : ""}`
+      : "Server-configured conversation";
     if (attempt !== generation) {
       await fetch(`/api/sessions/${session.id}`, {method: "DELETE"});
       return;

@@ -7,6 +7,13 @@
   <h1>Azure voice agent</h1>
   <p>Start a conversation, allow your microphone, and speak to the assistant.</p>
   <p lang="ar" dir="rtl">ابدأ المحادثة وتحدث مع المساعد الصوتي.</p>
+  <div id="test-selection" class="test-selection" hidden>
+    <label>Agent <select id="agent-select"></select></label>
+    <label>Survey <select id="survey-select"></select></label>
+    <label>Demo customer <select id="customer-select"></select></label>
+    <small>Synthetic test records only. Selection applies to the next conversation.</small>
+  </div>
+  <p id="active-task" class="muted"></p>
   <div class="status"><span id="indicator"></span><span id="status" role="status">Disconnected</span></div>
   <div class="controls">
     <button id="start">Start conversation</button>

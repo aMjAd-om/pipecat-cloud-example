@@ -21,17 +21,18 @@ class StreamingAzureTTS(AzureBaseTTSService):
     A fresh synthesizer per sentence prevents old callbacks reaching a new turn.
     Finally stops synthesis on cancellation, including Pipecat barge-in.
     """
-    def __init__(self, *, timing):
+    def __init__(self, *, timing, language=None, voice_id=None):
         super().__init__(api_key=os.environ["AZURE_SPEECH_KEY"],
                          region=os.environ["AZURE_SPEECH_REGION"], sample_rate=24000,
                          params=self.InputParams(language=Language.AR))
         self.timing = timing
         self._active = set()
-        self._language = os.getenv("DEFAULT_LANGUAGE", "ar")
+        self._language = language or os.getenv("DEFAULT_LANGUAGE", "ar")
+        self._preferred_voice = voice_id
 
     async def run_tts(self, text):
-        self._voice_id = os.getenv("AZURE_TTS_VOICE_AR", "ar-SA-HamedNeural") \
-            if self._language == "ar" else os.getenv("AZURE_TTS_VOICE_EN", "en-US-JennyNeural")
+        self._voice_id = self._preferred_voice or (os.getenv("AZURE_TTS_VOICE_AR", "ar-SA-HamedNeural")
+            if self._language == "ar" else os.getenv("AZURE_TTS_VOICE_EN", "en-US-JennyNeural"))
         self._settings["language"] = "-".join(self._voice_id.split("-")[:2])
         config = speechsdk.SpeechConfig(subscription=self._api_key, region=self._region)
         config.set_speech_synthesis_output_format(sample_rate_to_output_format(self.sample_rate))

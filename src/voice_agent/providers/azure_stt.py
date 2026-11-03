@@ -17,9 +17,11 @@ from voice_agent.observability.diagnostics import speech_cancellation
 
 
 class StreamingAzureSTT(STTService):
-    def __init__(self, *, timing):
+    def __init__(self, *, timing, language=None):
         super().__init__(sample_rate=16000, audio_passthrough=False)
         self.timing = timing
+        self._language = ({"ar": "ar-OM", "en": "en-US"}.get(language, language)
+                          if language else os.getenv("AZURE_STT_LANGUAGE", "ar-OM"))
         self._recognizer = self._stream = self._worker = None
         self._generation = 0
         self._closed = True
@@ -53,7 +55,7 @@ class StreamingAzureSTT(STTService):
             subscription=os.environ["AZURE_SPEECH_KEY"],
             region=os.environ["AZURE_SPEECH_REGION"],
         )
-        config.speech_recognition_language = os.getenv("AZURE_STT_LANGUAGE", "ar-OM")
+        config.speech_recognition_language = self._language
         stream = speechsdk.audio.PushAudioInputStream(speechsdk.audio.AudioStreamFormat(
             samples_per_second=16000, bits_per_sample=16, channels=1,
         ))

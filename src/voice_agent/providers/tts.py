@@ -11,10 +11,15 @@ def tts_provider():
     return provider
 
 
-def create_tts(*, timing=None):
-    provider = tts_provider()
+def create_tts(*, timing=None, language=None, preferences=None):
+    provider = (preferences.provider if preferences else None) or tts_provider()
+    options = {}
+    if language:
+        options["language"] = language
+    if preferences and preferences.voice_id:
+        options["voice_id"] = preferences.voice_id
     logger.info("TTS provider={}", provider)
     if provider == "cartesia":
-        return StreamingCartesiaTTS(timing=timing)
+        return StreamingCartesiaTTS(timing=timing, **options)
     from voice_agent.providers.azure_tts import StreamingAzureTTS
-    return StreamingAzureTTS(timing=timing)
+    return StreamingAzureTTS(timing=timing, **options)

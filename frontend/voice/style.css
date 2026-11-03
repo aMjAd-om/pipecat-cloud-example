@@ -14,3 +14,7 @@ button:focus-visible { outline: 3px solid #80b5e7; outline-offset: 3px; }
 #error { color: #a52222; min-height: 1.6em; }
 .muted { font-size: 14px; color: #607083; }
 @media(max-width: 480px) { main { padding: 24px; } }
+/* Optional developer selectors keep the existing voice controls intact. */
+.test-selection:not([hidden]) { display: grid; gap: .7rem; margin: 1rem 0; }
+.test-selection label { display: grid; gap: .3rem; }
+.test-selection select { max-width: 100%; padding: .5rem; font: inherit; }

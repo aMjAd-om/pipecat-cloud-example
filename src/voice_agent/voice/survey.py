@@ -86,7 +86,10 @@ class SurveyConversationProcessor(FrameProcessor):
 
     async def _follow_up(self, result, marker, version, question_id):
         try:
-            await asyncio.wait_for(marker.finished.wait(), 30)
+            # Avoid wait_for's completion/cancellation race when playback ends
+            # at the same moment caller speech cancels this reminder.
+            async with asyncio.timeout(30):
+                await marker.finished.wait()
         except asyncio.TimeoutError:
             return
         await asyncio.sleep(result.pause_seconds)

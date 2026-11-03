@@ -14,7 +14,9 @@ from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 from voice_agent.conversation.language import safe_spoken_text
-from voice_agent.conversation import ConversationManager, Questionnaire
+from voice_agent.conversation import ConversationManager
+from voice_agent.agents.models import SessionSelection
+from voice_agent.agents.runtime import create_runtime, catalog
 
 ASSETS = CHAT_ASSETS
 
@@ -33,6 +35,8 @@ class ChatSession:
     touched: float = field(default_factory=time.monotonic)
     pending: asyncio.Task | None = None
     closed: bool = False
+    runtime: object = None
+    decide: object = None
 
 
 def view(session):
@@ -43,7 +47,8 @@ def view(session):
                 pending_clarification=manager.pending_clarification,
                 pending_confirmation=manager.pending_confirmation,
                 skipped=sorted(manager.skipped), language=manager.language,
-                busy=session.pending is not None)
+                busy=session.pending is not None, discrepancy=manager.discrepancy,
+                selection=session.runtime.public() if session.runtime else None)
 
 
 def create_app(*, decide=None, port=7862, questionnaire_path=None):
@@ -80,12 +85,10 @@ def create_app(*, decide=None, port=7862, questionnaire_path=None):
         if decide is None:
             from voice_agent.config import load_settings
             from openai import AsyncOpenAI
-            from voice_agent.providers.foundry_llm import FoundryDecisionClient
             load_settings(service="llm")
             client = AsyncOpenAI(api_key=os.environ["AZURE_OPENAI_API_KEY"],
                                  base_url=os.environ["AZURE_OPENAI_BASE_URL"],
                                  timeout=30, max_retries=0)
-            decide = FoundryDecisionClient(client, os.environ["AZURE_OPENAI_DEPLOYMENT"])
         janitor = asyncio.create_task(reap())
         try:
             yield
@@ -145,15 +148,24 @@ def create_app(*, decide=None, port=7862, questionnaire_path=None):
     async def settings():
         return dict(token=token, language=language, model=model)
 
+    @app.get("/api/agents")
+    async def agents():
+        return {"enabled": True, **catalog()}
+
     @app.post("/api/sessions")
-    async def new():
+    async def new(payload: SessionSelection | None = None):
         if len(sessions) >= 8:
             raise HTTPException(429, "Close an existing chat before starting another.")
         # Reload questionnaire edits when starting a new conversation.
-        manager = ConversationManager(Questionnaire.load(path), language=language)
-        session = ChatSession(manager)
+        try:
+            runtime = create_runtime(payload, questionnaire_path=path)
+        except (ValueError, OSError):
+            raise HTTPException(400, "Invalid agent, survey, or demo customer selection") from None
+        manager = runtime.manager
+        session = ChatSession(manager, runtime=runtime,
+                              decide=decide or runtime.decision_client(client, model))
         sessions[manager.session_id] = session
-        return dict(state=view(session), spoken_response=safe_spoken_text(manager.opening(), language))
+        return dict(state=view(session), spoken_response=safe_spoken_text(manager.opening(), manager.language))
 
     @app.post("/api/sessions/{sid}/turn")
     async def turn(sid: str, body: Turn):
@@ -169,7 +181,7 @@ def create_app(*, decide=None, port=7862, questionnaire_path=None):
 
         async def trace(messages):
             nonlocal proposal
-            raw, usage = await decide(messages)
+            raw, usage = await session.decide(messages)
             try:
                 proposal = json.loads(raw) if isinstance(raw, str) else raw
             except (ValueError, TypeError):
@@ -184,10 +196,10 @@ def create_app(*, decide=None, port=7862, questionnaire_path=None):
             # Mirrors SurveyConversationProcessor's suppression of stale replies
             # and the final shared language boundary before phone/browser TTS.
             spoken = ("" if result.reason == "stale" else
-                      safe_spoken_text(result.spoken_response, language) if result.spoken_response else "")
+                      safe_spoken_text(result.spoken_response, manager.language) if result.spoken_response else "")
             metrics = (dict(manager.metrics[-1]) if manager.metrics and proposal is not None else {})
             record = dict(customer=body.text, spoken_response=spoken, proposed_decision=proposal,
-                          follow_up=(safe_spoken_text(result.follow_up, language)
+                          follow_up=(safe_spoken_text(result.follow_up, manager.language)
                                      if result.reason != "stale" and result.follow_up else ""),
                           pause_seconds=result.pause_seconds,
                           validation=dict(accepted=result.accepted, committed=result.committed,

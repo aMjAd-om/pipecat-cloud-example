@@ -34,6 +34,11 @@ def load_settings(*, service=None):
         raise ValueError("DEFAULT_LANGUAGE must be ar or en")
     if os.getenv("SURVEY_CONVERSATION_MANAGER", "false").lower() not in ("true", "false"):
         raise ValueError("SURVEY_CONVERSATION_MANAGER must be true or false")
+    if os.getenv("DEMO_TESTING_ENABLED", "false").lower() not in ("true", "false"):
+        raise ValueError("DEMO_TESTING_ENABLED must be true or false")
+    if os.getenv("AGENT_ID"):
+        from voice_agent.agents.runtime import registry
+        registry().get(os.environ["AGENT_ID"])
     if os.getenv("TELEPHONY_ENABLED", "false").lower() not in ("true", "false"):
         raise ValueError("TELEPHONY_ENABLED must be true or false")
     if os.getenv("SURVEY_CONVERSATION_MANAGER", "false").lower() == "true":

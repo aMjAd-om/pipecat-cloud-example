@@ -3,6 +3,20 @@ const $ = id => document.getElementById(id);
 let token = "", session = null, busy = false, restarting = false, generation = 0;
 const history = [];
 let followUpTimer = null;
+let agentCatalog = null;
+function selectOptions(id, values) {
+  $(id).replaceChildren(...values.map(([value, label]) => new Option(label, value)));
+}
+function updateSelection() {
+  const agent = agentCatalog?.agents.find(a => a.agent_id === $("agent-select").value);
+  selectOptions("survey-select", [["", "Agent/server default"], ...(agent?.surveys ?? agentCatalog?.surveys ?? []).map(s => [s, s])]);
+  selectOptions("customer-select", [["", "No customer metadata"], ...(agent?.customers ?? []).map(c => [c.id, c.label])]);
+}
+function selection() {
+  return Object.fromEntries([["agent_id", $("agent-select").value], ["survey_id", $("survey-select").value],
+    ["mock_customer_id", $("customer-select").value]].filter(([, value]) => value));
+}
+$("agent-select").addEventListener("change", updateSelection);
 
 function cancelFollowUp() {
   clearTimeout(followUpTimer);
@@ -59,6 +73,9 @@ function controls() {
 function render(state) {
   if (session?.session_id === state.session_id && state.version < session.version) return;
   session = state;
+  const chosen = state.selection;
+  $("active-task").textContent = chosen
+    ? `${chosen.agent_name} · ${chosen.survey_id ?? "Configured survey"}${chosen.demo ? " · Demo data" : ""}` : "Configured survey";
   const q = state.current_question;
   $("question").textContent = q.text;
   $("state").textContent = `${q.id} · ${q.kind} · version ${state.version}` +
@@ -85,10 +102,11 @@ async function restart() {
   const old = session; session = null; busy = false; controls(); $("error").textContent = "";
   try {
     if (old) await api(`/api/sessions/${old.session_id}`, {method: "DELETE"});
-    const data = await api("/api/sessions", {method: "POST"});
+    const data = await api("/api/sessions", {method: "POST", body: selection()});
     if (mine !== generation) return;
     history.length = 0; history.push({agent: data.spoken_response});
     $("messages").replaceChildren(); $("decision").textContent = "";
+    $("tool-events").textContent = "No tools requested.";
     $("result").textContent = "Send a reply to inspect the result.";
     render(data.state); message("agent", data.spoken_response); $("reply").value = ""; $("reply").focus();
   } catch (error) { if (mine === generation) $("error").textContent = error.message; }
@@ -112,6 +130,8 @@ $("composer").addEventListener("submit", async event => {
     if (data.spoken_response) message("agent", data.spoken_response, `${Math.round(data.elapsed_ms)} ms`);
     else message("notice", data.validation.reason === "stale" ? "Interrupted reply discarded; survey did not advance." : "Duplicate turn ignored.");
     $("decision").textContent = JSON.stringify(data.proposed_decision, null, 2);
+    $("tool-events").textContent = data.metrics.tool_events?.length
+      ? JSON.stringify(data.metrics.tool_events, null, 2) : "No tools requested.";
     $("result").replaceChildren();
     const badge = document.createElement("span"); badge.className = `badge ${data.validation.accepted ? "" : "rejected"}`;
     badge.textContent = data.validation.committed ? "Answer accepted" : data.validation.accepted ? "Conversation only" : "Proposal rejected";
@@ -157,6 +177,10 @@ window.addEventListener("pagehide", () => {
   try {
     const config = await api("/api/settings"); token = config.token;
     $("configuration").textContent = `${config.model} · ${config.language === "ar" ? "Arabic" : "English"}`;
+    agentCatalog = await api("/api/agents");
+    selectOptions("agent-select", [["", "Server default"], ...agentCatalog.agents.map(a => [a.agent_id, a.name])]);
+    $("agent-select").value = agentCatalog.default_agent_id;
+    updateSelection();
     await restart();
   } catch (error) { $("error").textContent = error.message; }
 })();

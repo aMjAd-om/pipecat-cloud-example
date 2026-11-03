@@ -93,8 +93,25 @@ try {
   await send("نعم");
   assert.match(await page.locator("#question").textContent(), /صعوبات/);
   assert.doesNotMatch(await page.locator("#answers").textContent(), /staff_experience/);
+  await page.selectOption("#agent-select", "bank_feedback");
+  await page.selectOption("#customer-select", "demo-ahmed");
+  await page.getByRole("button", {name: "New conversation"}).click();
+  await page.getByText("Ready for customer reply", {exact: true}).waitFor();
+  assert.match(await page.locator("#active-task").textContent(), /bank-nizwa.ar.*Demo data/);
+  assert.match(await page.locator("#messages").textContent(), /بنك نزوى/);
+  await send("نعم");
+  await send("أربعة");
+  assert.match(await page.locator("#answers").textContent(), /overall_rating/);
+  await page.selectOption("#agent-select", "municipality_complaints");
+  assert.equal(await page.locator("#customer-select option[value='demo-ahmed']").count(), 0);
+  await page.selectOption("#customer-select", "demo-municipality");
+  await page.getByRole("button", {name: "New conversation"}).click();
+  await page.getByText("Ready for customer reply", {exact: true}).waitFor();
+  assert.match(await page.locator("#active-task").textContent(), /municipality-follow-up.ar/);
+  assert.match(await page.locator("#messages").textContent(), /بلاغ/);
+  assert.match(await page.locator("#answers").textContent(), /No answers/);
   assert.deepEqual(pageErrors, []);
-  console.log("PASS contextual company reply, delayed reminder, reminder cancellation, consent, ratings, pause/resume, safe rendering, export, reset and confirmed skip");
+  console.log("PASS contextual company reply, reminder cancellation, consent, ratings, pause/resume, safe rendering, export, reset, confirmed skip, agent/survey/customer selection and isolation");
 } finally {
   if (browser) await browser.close();
   server.kill();

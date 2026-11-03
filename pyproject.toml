@@ -27,3 +27,6 @@ survey-chat = "voice_agent.api.survey_chat:run"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+voice_agent = ["agents/*/agent.json", "agents/*/prompt.md", "context/*.json"]

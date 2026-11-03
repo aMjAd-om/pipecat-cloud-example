@@ -1,0 +1,27 @@
+[
+  {
+    "mock_id": "demo-ahmed", "agent_id": "bank_feedback", "label": "Ahmed — synthetic bank visits",
+    "customer": {"id": "DEMO-BANK-001", "name": "أحمد", "language": "ar-OM"},
+    "caller_organization": "شركة داتامايننج", "purpose": "استبيان تجريبي عن زيارة بنك نزوى",
+    "visits": [
+      {"organization": "بنك نزوى", "branch": "الخوير", "visit_date": "2026-11-02", "visit_time": "10:30", "service": "فتح حساب", "visit_reference": "DEMO-VIS-1025"},
+      {"organization": "بنك نزوى", "branch": "نزوى", "visit_date": "2026-10-20", "visit_time": "09:00", "service": "استفسار عن الخدمات", "visit_reference": "DEMO-VIS-1010"}
+    ]
+  },
+  {
+    "mock_id": "demo-sara", "agent_id": "bank_feedback", "label": "Sara — synthetic bank visit",
+    "customer": {"id": "DEMO-BANK-002", "name": "سارة", "language": "ar-OM"},
+    "caller_organization": "شركة داتامايننج", "purpose": "استبيان تجريبي عن زيارة بنك نزوى",
+    "visits": [
+      {"organization": "بنك نزوى", "branch": "صلالة", "visit_date": "2026-11-01", "visit_time": "11:00", "service": "استفسار عن الخدمات", "visit_reference": "DEMO-VIS-2001"}
+    ]
+  },
+  {
+    "mock_id": "demo-municipality", "agent_id": "municipality_complaints", "label": "Salim — synthetic municipality complaint",
+    "customer": {"id": "DEMO-MUNICIPALITY-001", "name": "سالم", "language": "ar-OM"},
+    "caller_organization": "شركة داتامايننج", "purpose": "متابعة تجريبية لبلاغ بلدي",
+    "visits": [
+      {"organization": "بلدية تجريبية", "branch": "مركز خدمة تجريبي", "visit_date": "2026-11-01", "service": "بلاغ عن إنارة شارع", "visit_reference": "DEMO-COMPLAINT-001"}
+    ]
+  }
+]

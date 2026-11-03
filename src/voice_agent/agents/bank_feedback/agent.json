@@ -1,0 +1,11 @@
+{
+  "agent_id": "bank_feedback",
+  "name": "Bank customer feedback (demo)",
+  "description": "Short Bank Nizwa visit feedback demonstration, conducted by Data Mining.",
+  "prompt_file": "prompt.md",
+  "workflow_type": "survey",
+  "survey_id": "bank-nizwa.ar",
+  "language": "ar-OM",
+  "tools": ["get_customer_visits"],
+  "context": ["customer_profile", "recent_interaction", "call"]
+}

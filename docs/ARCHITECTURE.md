@@ -3,9 +3,20 @@
 The repository runs one Python application with shared conversation logic and
 separate browser, telephone, and text entry points.
 
+The engine also supports declarative agents: `agents/` loads agent identity,
+instructions, permitted tools, language/voice preferences and survey selection;
+`context/` preloads session-bound synthetic customer records; `tools/` validates
+and executes optional read-only model requests. These all reuse the existing
+`ConversationManager`, Foundry client, and Pipecat pipeline. See the
+[platform implementation and extension guide](MULTI_AGENT_PLATFORM.md) for the
+updated tree, configuration examples, boundaries, testing, and file inventory.
+
 | Folder | Responsibility |
 |---|---|
 | `src/voice_agent/api/` | FastAPI lifecycle, browser signaling and sessions, telephony listener, text lab |
+| `src/voice_agent/agents/` | Validated agent registry, packaged prompts/configuration, per-call runtime factory |
+| `src/voice_agent/context/` | Customer/interaction models, deterministic loader and synthetic repository |
+| `src/voice_agent/tools/` | Function schemas, explicit async handlers, registry, permissions/timeouts |
 | `src/voice_agent/conversation/` | Survey models, prompt, authoritative state, answer parsing, shared language checks |
 | `src/voice_agent/voice/` | Pipecat pipeline assembly and survey/language frame processors |
 | `src/voice_agent/providers/` | Azure STT/TTS, Foundry streaming and decision clients, Cartesia TTS, provider selection |
@@ -30,6 +41,9 @@ connections. `voice/pipeline.py` assembles services and processors.
 Conversation rules and state live in `conversation/`, so the voice agent and text
 lab apply the same decisions. That layer uses no Pipecat frame processors or
 provider SDKs. Provider integrations and transport details stay in their own folders.
+`conversation/composer.py` layers the existing shared policy, agent instructions,
+questionnaire state and untrusted runtime context. Survey progression remains in
+the existing manager; there is no second manager or separate agent pipeline.
 
 `paths.py` locates repository assets relative to the source checkout, including
 the editable installation used in Docker. `VOICE_AGENT_ROOT` can explicitly select

@@ -6,17 +6,26 @@ from collections import deque
 from uuid import uuid4
 from voice_agent.conversation.models import Questionnaire, Decision, Snapshot, Result
 from voice_agent.conversation.answers import rating_tokens, normalize_answer
-from voice_agent.conversation.prompts import PROMPT
+from voice_agent.conversation.composer import compose
 from voice_agent.conversation.guidance import response_requirements
+from voice_agent.conversation.rendering import direct_reply
 
 
 class ConversationManager:
-    def __init__(self, questionnaire: Questionnaire, *, session_id=None, language="ar"):
+    def __init__(self, questionnaire: Questionnaire, *, session_id=None, language="ar",
+                 agent_prompt="", call_context=None, agent_id=None, survey_id=None,
+                 end_call_on_finish=False):
         if language not in ("ar", "en"):
             raise ValueError("language must be ar or en")
         self.questionnaire = questionnaire
         self.session_id = session_id or str(uuid4())
         self._language = language
+        self.agent_prompt = agent_prompt
+        self.call_context = call_context
+        self.agent_id = agent_id
+        self.survey_id = survey_id
+        self.end_call_on_finish = end_call_on_finish
+        self.discrepancy = False
         self.version = 0
         self.index = 0
         self.answers = {}
@@ -58,10 +67,8 @@ class ConversationManager:
                                          if q.id in self.answers],
                      authorized_information=self.questionnaire.authorized_information,
                      wrong_recipient_response=self.questionnaire.wrong_recipient_response)
-        return Snapshot(self.session_id, self.version, self.question.id, [
-            {"role": "system", "content": PROMPT},
-            {"role": "system", "content": json.dumps(state, ensure_ascii=False)},
-        ])
+        return Snapshot(self.session_id, self.version, self.question.id,
+                        compose(state, agent_prompt=self.agent_prompt, context=self.call_context))
 
     def interrupt(self):
         # Invalidates in-flight/queued decisions without cancelling the survey.
@@ -195,7 +202,8 @@ class ConversationManager:
                     and d.intent in ("company", "identity", "off_topic")):
                 # Keep the generated answer, but let the separate timed reminder
                 # own any exact replay of the active questionnaire question.
-                text = text.replace(self.question.text, "").strip()
+                text = direct_reply(text, self.question.text) or self._say(
+                    "السموحة، ما قدرت أوضح هالنقطة.", "Sorry, I couldn't clarify that point.")
             if d.action in ("next_question", "repeat", "resume", "skip") and any(
                     mark in text for mark in ("؟", "?")):
                 # A transition bridge cannot ask its own question: Python owns
@@ -250,6 +258,7 @@ class ConversationManager:
                 text += " " + self.question.text
             elif d.action == "finish":
                 self.cancelled = True
+                self.discrepancy = d.intent == "wrong_recipient"
                 self.pending_clarification = None
                 self.pending_confirmation = None
                 text = (self.questionnaire.wrong_recipient_response if d.intent == "wrong_recipient"
@@ -263,7 +272,8 @@ class ConversationManager:
                     and not self.paused and not self.completed and not self.cancelled):
                 follow_up = self._say("نرجع لسؤالنا، ", "Let's return to the question: ") + self.question.text
             return Result(True, text, "accepted", committed, follow_up,
-                          1.0 if follow_up else 0.0, end_call=d.intent == "wrong_recipient")
+                          1.0 if follow_up else 0.0, end_call=(d.intent == "wrong_recipient" or
+                          (self.end_call_on_finish and (self.cancelled or self.completed))))
 
     async def turn(self, event_id, utterance, decide, *, snapshot=None):
         # IDs identify recognition events, never transcript text: repeated 'four'
@@ -299,7 +309,15 @@ class ConversationManager:
                 "For company or identity questions, answer only what was asked from authorized "
                 "facts; Python handles the separate return to the question. For transitions, "
                 "Python supplies the exact next question. Preserve the action/status contract "
-                "and distinguish confirmation of a pending action from an answer."},
+                "and distinguish confirmation of a pending action from an answer. "
+                "A question about which interaction/visit, branch, date or caller is "
+                "company/not_answered/stay with null answer_value. Answer from runtime "
+                "context even before consent; permission is needed to collect survey "
+                "answers, not to explain the call. Do not append a consent question. "
+                "Missing metadata means details are unavailable, not that the customer "
+                "must consent first. A clear disputed visit with a configured "
+                "wrong_recipient_response uses wrong_recipient/not_answered/finish. "
+                "For correct_previous use not_answered/repeat with the answered question ID."},
                 {"role": "user", "content": utterance}]
             decision, usage = await decide(messages)
             decision = Decision.model_validate(decision) if isinstance(decision, dict) else Decision.model_validate_json(decision)
@@ -319,7 +337,8 @@ class ConversationManager:
         self.metrics.append(dict(latency_ms=round((time.monotonic() - start) * 1000, 2),
                                  accepted=result.accepted, committed=result.committed,
                                  reason=result.reason, **{k: usage.get(k, 0) for k in
-                                 ("prompt_tokens", "completion_tokens", "total_tokens")}))
+                                 ("prompt_tokens", "completion_tokens", "total_tokens", "model_calls",
+                                  "tool_calls", "tool_latency_ms", "tool_events")}))
         return result
 
     def clear(self):
@@ -331,3 +350,4 @@ class ConversationManager:
         self.pending_clarification = None
         self.pending_confirmation = None
         self.revising_question_id = None
+        self.call_context = None

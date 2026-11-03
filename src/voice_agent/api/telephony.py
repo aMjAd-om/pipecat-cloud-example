@@ -1,12 +1,35 @@
 """Private, opt-in Asterisk media listener. No browser routing or public port."""
 import asyncio
 import os
+import json
+from pathlib import Path
 from contextlib import asynccontextmanager, nullcontext, suppress
 
 from fastapi import FastAPI, WebSocket
 from loguru import logger
 
 from voice_agent.transports.asterisk import AsteriskPeer, AsteriskTransport, MediaProtocolError, media_start
+from voice_agent.agents.models import SessionSelection
+from voice_agent.agents.runtime import create_runtime
+
+
+def selection_for_call(channel_id):
+    """Only operator-controlled configuration can bind a call to an agent/customer."""
+    configured = os.getenv("TELEPHONY_CALL_CONFIG")
+    routes = {}
+    if configured:
+        path = Path(configured)
+        if path.stat().st_size > 64000:
+            raise ValueError("call configuration too large")
+        routes = json.loads(path.read_text(encoding="utf-8-sig"))
+        if not isinstance(routes, dict):
+            raise ValueError("invalid call configuration")
+    selection = SessionSelection.model_validate(routes.get(channel_id, {}))
+    if selection.agent_id is None and os.getenv("TELEPHONY_AGENT_ID"):
+        selection = selection.model_copy(update={"agent_id": os.environ["TELEPHONY_AGENT_ID"]})
+    if selection.mock_customer_id and os.getenv("DEMO_TESTING_ENABLED", "false").lower() != "true":
+        raise ValueError("demo customer selection is disabled")
+    return selection
 
 
 def create_telephony_app(*, pipeline=None):
@@ -56,6 +79,9 @@ def create_telephony_app(*, pipeline=None):
                 await ws.close(code=1013)
                 return
             stop = asyncio.Event()
+            selection = selection_for_call(key)
+            runtime = (create_runtime(selection, session_id=key)
+                       if os.getenv("AGENT_ID") or any(selection.model_dump().values()) else None)
             peer = AsteriskPeer(ws, start, stop)
             calls[key] = peer
             logger.info("Telephone call started; active={}", len(calls))
@@ -64,7 +90,8 @@ def create_telephony_app(*, pipeline=None):
             timer = asyncio.get_running_loop().call_later(duration, stop.set)
             try:
                 stage = "pipeline"
-                await pipeline(None, stop_event=stop, transport=transport)
+                options = {"runtime": runtime} if runtime else {}
+                await pipeline(None, stop_event=stop, transport=transport, **options)
             finally:
                 timer.cancel()
         except asyncio.CancelledError:

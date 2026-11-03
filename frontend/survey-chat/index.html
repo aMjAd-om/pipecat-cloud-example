@@ -12,6 +12,13 @@
   </header>
   <main>
     <section class="conversation" aria-label="Conversation">
+      <div class="test-selection">
+        <label>Agent <select id="agent-select"><option value="">Server default</option></select></label>
+        <label>Survey <select id="survey-select"><option value="">Server default</option></select></label>
+        <label>Demo customer <select id="customer-select"><option value="">No customer metadata</option></select></label>
+        <small>Selections apply when you click New conversation. Customer records are synthetic.</small>
+        <div id="active-task"></div>
+      </div>
       <div class="session-bar"><span id="connection" role="status">Connecting…</span><span id="configuration"></span></div>
       <div id="messages" role="log" aria-live="polite"></div>
       <div id="suggestions" aria-label="Example customer replies">
@@ -32,6 +39,7 @@
       <section class="card"><h2>Current question</h2><div id="question" dir="auto">—</div><div id="state"></div></section>
       <section class="card"><h2>Accepted answers</h2><div id="answers" class="empty">No answers accepted yet.</div></section>
       <section class="card"><h2>Last decision</h2><div id="result" class="empty">Send a reply to inspect the result.</div><pre id="decision"></pre></section>
+      <section class="card"><h2>Tool execution</h2><pre id="tool-events">No tools requested.</pre></section>
     </aside>
   </main>
 </body>

@@ -10,6 +10,7 @@ from pipecat.transports.network.webrtc_connection import SmallWebRTCConnection, 
 from voice_agent.voice.pipeline import main as run_bot
 from voice_agent.transports.ice_lifecycle import install_ice_lifecycle_guard
 from voice_agent.api.signaling import configured_ice_servers
+from voice_agent.agents.runtime import create_runtime
 
 
 @dataclass
@@ -26,6 +27,7 @@ class Session:
     original_sdp: str | None = None
     lock: asyncio.Lock = field(default_factory=asyncio.Lock)
     stop: asyncio.Event = field(default_factory=asyncio.Event)
+    runtime: object = None
 
 
 class Sessions:
@@ -40,10 +42,12 @@ class Sessions:
         self.connection_factory = connection_factory
         self.cleanups = set()
 
-    def create(self):
+    def create(self, selection=None):
         if len(self.items) >= self.limit:
             raise HTTPException(429, "All conversation slots are occupied. Try again shortly.")
         session = Session(secrets.token_urlsafe(24), secrets.token_urlsafe(32), configured_ice_servers())
+        if os.getenv("AGENT_ID") or (selection and any(selection.model_dump().values())):
+            session.runtime = create_runtime(selection, session_id=session.id)
         self.items[session.id] = session
         return session
 
@@ -89,7 +93,8 @@ class Sessions:
                 connection.add_event_handler("connected", connected)
                 await asyncio.wait_for(connection.initialize(sdp=offer.sdp, type=offer.type), 25)
                 session.original_sdp = offer.sdp
-                session.job = asyncio.create_task(self.pipeline(connection, stop_event=session.stop))
+                options = {"runtime": session.runtime} if session.runtime else {}
+                session.job = asyncio.create_task(self.pipeline(connection, stop_event=session.stop, **options))
                 def finished(job):
                     if not job.cancelled() and job.exception():
                         logger.error("Session pipeline failed ({})", type(job.exception()).__name__)

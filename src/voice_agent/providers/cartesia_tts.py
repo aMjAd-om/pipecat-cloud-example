@@ -33,10 +33,12 @@ class StreamingCartesiaTTS(TTSService):
     response. No automatic retries that could replay partially spoken text.
     """
 
-    def __init__(self, *, timing=None, client=None):
+    def __init__(self, *, timing=None, client=None, language=None, voice_id=None):
         super().__init__(sample_rate=24000)
         self._config = cartesia_settings()
-        self._language = os.getenv("DEFAULT_LANGUAGE", "ar")
+        self._language = language or os.getenv("DEFAULT_LANGUAGE", "ar")
+        if voice_id:
+            self._config["voice"] = voice_id
         self._key = os.environ["CARTESIA_API_KEY"]
         self.timing = timing
         self._client = client or httpx.AsyncClient(

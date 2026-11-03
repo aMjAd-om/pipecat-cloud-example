@@ -41,6 +41,9 @@ Backend code lives in `src/voice_agent/`, grouped by responsibility:
 conversation lab is in `frontend/survey-chat/`. Questionnaires, evaluation
 scripts/results, tests, and guides have their own top-level folders.
 See [the architecture guide](docs/ARCHITECTURE.md) for module ownership and commands.
+The [configurable agent platform guide](docs/MULTI_AGENT_PLATFORM.md) explains
+agent selection, isolated demo customer context, approved tools, and adding an
+agent or survey while reusing the same Pipecat pipeline.
 
 Docker starts the application inside the container automatically. Use the Docker
 commands below; no separate host Python command is needed. Existing `.env`
