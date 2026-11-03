@@ -12,6 +12,7 @@ The supplied `.env.example` enables the Arabic customer-satisfaction survey from
 شركة تنقيب البيانات, with explicit consent and eight questions. Speech stays in
 `DEFAULT_LANGUAGE` for the entire call, using `ar-SA-HamedNeural` for Arabic.
 See [customer survey setup and verification](docs/CUSTOMER_SURVEY.md).
+For a shorter Omani Arabic example, see the [Bank Nizwa demo survey](docs/BANK_NIZWA_SURVEY.md).
 `SURVEY_CONVERSATION_MANAGER=false` selects the legacy assistant for comparison.
 The [Phase 6 report](docs/PHASE6.md) records the original implementation and benchmark.
 
