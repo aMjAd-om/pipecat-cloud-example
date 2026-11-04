@@ -1,38 +1,152 @@
 # Omantel SIP trunk: staged configuration and deployment record
 
-Status on 2026-11-04: **prepared locally; not installed or verified on Ubuntu**.
+Status on 2026-11-04: **configuration staged; user-supplied Ubuntu audit reviewed;
+trunk not installed or verified**.
 The supplied block `211308XX` is configured as `21130800`–`21130899`.
 The pilot DID and outbound identity are `21130800`. Service line `9999421`
 is retained here as an account reference, not a seven-digit SIP caller ID.
 No outbound test destination or call approval has been supplied.
 
+The user subsequently approved the proposed Netplan and Omantel SIP firewall
+changes, including the dedicated firewall startup service. That approval remains
+valid for this session. It does not approve an Asterisk restart or telephone calls.
+Application on Ubuntu and its verification results are still pending; this
+Windows workspace has no established SSH connection to that server.
+
+For the approved network rollout, generate backend configuration in a private
+staging root using `netplan generate --root-dir`, retaining all existing Netplan
+source directories in that root. Install the new persistent YAML and only the
+generated `10-netplan-enp11s0.network` runtime file. Then reload networkd's
+definitions and reconfigure `enp11s0`. This avoids regenerating/reloading the
+internet and Wi-Fi configuration as part of a global `netplan apply`.
+`networkctl reload` can reconfigure interfaces whose files changed, so existing
+runtime network files must remain untouched. Record the default routes before
+and after and confirm both SBCs from the bound source address.
+
+The [Netplan generator](https://netplan.readthedocs.io/en/1.1/netplan-generate/)
+supports isolated generation, and [networkctl](https://www.freedesktop.org/software/systemd/man/249/networkctl.html)
+documents reloading definitions and reconfiguring interfaces.
+
 ## Inspection findings and actual results
 
 The checkout is on Windows, with no Docker executable. The separate Ubuntu PBX
-configuration is not in this repository. SSH configuration has no alias identifying
-the Ubuntu PBX; the server SSH target is still needed. No unrelated server was
-contacted. Consequently the running container, live files, network persistence,
-firewall, and SIP responses have **not** been inspected remotely.
+configuration is not in this repository. The user supplied an audit captured at
+11:31 Dubai time (07:31 UTC) on 2026-11-04. Findings below come from that snapshot,
+not direct SSH access. No production configuration has been changed by this task.
 
 | Item | Repository evidence | Live status |
 |---|---|---|
-| Asterisk Compose | `docs/ASTERISK_SETUP.md` describes `~/voice-pbx/compose.yml`, service `asterisk`, host networking, individual read-only config mounts | Actual file, mounts and network mode unknown |
-| Version | Guide targets Asterisk 22.11.0; WebSocket JSON requires 22.8+ | Running version unknown |
-| Local SIP | Guide uses `transport-udp`, wildcard UDP/5060, authenticated extension `1001`, A-law and mu-law | Live transport and registration unknown |
-| Dialplan | Guide uses `6000@from-linphone` for Echo, `2000@from-linphone` for `Dial(WebSocket/pipecat/c(slin16)f(json),30)` | Must inspect live entry point |
-| RTP | Guide configures UDP 10000–10100 and strict RTP | Actual range/firewall unknown |
-| Media bridge | Existing adapter accepts 16 kHz mono `slin16`, 640-byte/20 ms WebSocket audio; stateful TTS resampling, interruption flush and per-call cleanup | Live transcoding/audio not tested |
+| Asterisk Compose | `/home/data_mining/voice-pbx/compose.yml`; five individual read-only config mounts | Supplied Compose confirms host networking and existing image build; no Compose change needed for inline fragments |
+| Version | Runtime `core show version` | Asterisk 22.11.0 |
+| Local SIP | Live `pjsip.conf` and endpoint inspection, followed by user call confirmation | Authenticated `1001`, A-law/mu-law, wildcard UDP/5060; user confirms `2000@192.168.1.95` works; no contact was registered at the earlier audit instant |
+| Dialplan | Live dialplan and mounted file | `6000@from-linphone` Echo and `2000@from-linphone` WebSocket/slin16/json confirmed |
+| RTP | Runtime settings and mounted file | UDP 10000–10100, strict RTP enabled; carrier media ranges remain unknown |
+| Media bridge | WebSocket module and loopback health | Module loaded; `127.0.0.1:7861/health` reports ok, zero calls; A-law/8 kHz to slin/16 kHz translation exists, reverse/live audio not tested |
 | Agent networking | `docker-compose.ubuntu.yml` uses host networking; development Compose uses bridge networking | Deployed agent mode unknown |
-| Network | User reports `enp11s0`, `100.127.29.138/30`, gateway `100.127.29.137`, successful pings to both SBCs | Host/runtime routes and reboot persistence unverified |
-| Internet/Azure | Providers and existing application Compose files unchanged | Actual Ubuntu internet/Azure connectivity unverified |
+| Network | Host/Asterisk namespace and subsequent nmcli output | Address and both `/32` routes correct; both peers 4/4 pings, primary average 3.258 ms, secondary 3.971 ms; Omantel externally configured, autoconnect no; persistence not confirmed |
+| Internet/Azure | Current default route is via `192.168.1.1` on `enp10s0`, source `192.168.1.95`; Wi-Fi backup uses `.102`, metric 600 | Default internet route exists; Azure connectivity not tested |
+| Firewall | UFW inactive; IPv4 INPUT accepts with no displayed SIP source restriction; Docker rules primarily affect forwarding | No host SIP ingress restriction shown; upstream router exposure unknown |
 | OPTIONS | Independent AORs configured for 30-second qualification | Neither SBC tested; no availability claim |
 | Calls/redundancy | Restricted candidate dialplan prepared | No inbound, outbound, AI, or failover calls performed |
 
-Local verification: seven Omantel policy/renderer tests passed. They check number
+## Next steps for the audited server
+
+The existing PBX files are under `/home/data_mining/voice-pbx/config`. No Docker
+network change or image rebuild is needed. All required modules inspected
+(`chan_websocket`, IP endpoint identification, PJSIP ACL) are loaded.
+
+The follow-up nmcli output reports `enp11s0` connected externally with profile
+`enp11s0`, UUID `b46db0a1-f527-4f03-9d14-ec6d0045b1e2`, autoconnect **no**.
+`networkctl` reports it unmanaged and the shown Netplan files cover only Ethernet
+internet and Wi-Fi. The external profile reflects the current network state;
+it does not establish a boot-time configuration. See the
+[NetworkManager external-connection behavior](https://www.networkmanager.dev/docs/api/latest/NetworkManager.conf.html).
+The unused `Wired connection 1` profile has autoconnect yes, but its interface
+binding is not shown; do not delete or modify it blindly. Use explicit networkd
+ownership of only `enp11s0` in the proposed Netplan file, keeping Wi-Fi's current
+NetworkManager ownership and the existing internet Ethernet configuration.
+Any existing custom boot script that configures this interface must be reconciled
+before installing the proposal; none has been identified in the supplied output.
+
+`deploy/omantel/90-omantel.yaml.proposed` is a concrete review-only candidate if
+no existing manager profile provides persistence. It adds only the Omantel
+interface/address and two SBC host routes, with no default gateway or DNS changes.
+Approval is required before installing or applying it. Check for any other boot
+scripts/services that configure the interface before choosing the final owner.
+The [Netplan YAML reference](https://netplan.readthedocs.io/en/latest/netplan-yaml/)
+documents per-interface renderers, static addresses and routes.
+
+The minimal PBX proposal is:
+
+1. User confirms Linphone/AI works at `2000@192.168.1.95`. Narrow `transport-udp`
+   from `0.0.0.0:5060` to `192.168.1.95:5060`. The Omantel transport binds only
+   `100.127.29.138:5060`. No additional Wi-Fi listener is needed for the confirmed
+   call path. Current observed addresses are Ethernet `192.168.1.95` and Wi-Fi
+   `192.168.1.102`, both DHCP.
+   Keep endpoint `1001`, its authentication and `from-linphone` dialplan intact.
+   Confirm address stability before relying on a specific-IP listener across boots.
+2. Append the contents of `omantel-transport.conf` and `omantel-primary.conf`
+   directly to the existing mounted `pjsip.conf`, and append
+   `omantel-extensions.conf` directly to the existing mounted `extensions.conf`.
+   Prepare private candidate copies and backups first; do not print the SIP secret.
+   Do not append `omantel-pjsip.conf`: its includes need mounts that do not currently
+   exist. Inlining these fragments avoids Compose changes and container recreation.
+3. `deploy/omantel/omantel-signaling.nft.proposed` adds a separate
+   `inet omantel_signaling` table. For destination `100.127.29.138:5060/UDP`,
+   allow only the two SBCs received on `enp11s0`, then drop all other signaling to
+   that destination. All other traffic passes this guard unchanged; existing
+   rules still apply. No blanket UFW enable/reset, ruleset flush, or change to
+   Docker's generated chains. The companion
+   `omantel-signaling.service.proposed` loads `/etc/omantel-signaling.nft` after
+   the existing nftables service (if active) and before Docker at boot; stopping
+   it removes only the added `inet omantel_signaling` table. Verify `/usr/sbin/nft`
+   exists, syntax-check the rules and review the unit on Ubuntu before enabling.
+   Approval is required for installation/enabling. Carrier RTP restrictions wait for verified media
+   ranges; the proposal contains no guessed media source addresses.
+4. After persistence, bind and security prerequisites are resolved, obtain approval
+   for one controlled restart of the existing container, then verify primary
+   OPTIONS source/response/contact status. Primary only, pilot Echo, outbound off.
+   No call approval is implied by restart approval.
+
+The [Asterisk transport reference](https://docs.asterisk.org/Configuration/Channel-Drivers/SIP/Configuring-res_pjsip/PJSIP-Configuration-Sections-and-Relationships/)
+documents socket uniqueness and transport reload constraints. Never add the
+dedicated UDP/5060 bind while keeping the existing wildcard bind.
+
+The earlier fragment-mount instructions below remain an alternative deployment
+method; inlining is the smaller change for this audited container.
+
+Prepare private original snapshots and the exact inline PBX candidates on Ubuntu
+from this application's checkout (after the staging helper is committed/pushed
+and pulled), without installing them:
+
+```bash
+sudo python3 -m scripts.stage_omantel_existing \
+  --pbx-dir /home/data_mining/voice-pbx \
+  --settings deploy/omantel/settings.example.json \
+  --linphone-ip 192.168.1.95 \
+  --output /home/data_mining/voice-pbx/omantel-review
+
+sudo nft --check --file deploy/omantel/omantel-signaling.nft.proposed
+```
+
+Use a new output path if that review directory exists. The helper refuses existing
+Omantel objects, unexpected transport binds, and any stage that enables secondary,
+AI or outbound calls. It preserves authentication and the Linphone dialplan,
+records source hashes for a later unchanged-source check, and writes files under
+a private directory (0700) with SIP files 0600. Original snapshots are retained
+byte-for-byte. The files contain the real SIP password; do not share full files
+or raw diffs. The helper never installs, reloads, restarts, contacts an SBC or
+changes networking. The nft check validates the candidate without applying it.
+Netplan generation still needs validation on Ubuntu; no Netplan validation tool
+is available in this Windows workspace.
+
+Local verification: ten Omantel policy/renderer/staging tests passed. They check number
 boundaries, configuration injection rejection, safe defaults, isolated primary and
 secondary policies, outbound restrictions, failover generation, and refusal to
 overwrite an existing directory, and agreement between the checked-in candidates
-and their settings/templates. These checks do not run Asterisk's parser.
+and their settings/templates. The extra staging checks verify auth/dialplan
+preservation, safe refusal of duplicate or unexpected input, original snapshots,
+and unchanged source files. These checks do not run Asterisk's parser.
 `bash -n scripts/inspect_omantel.sh` passed. Twelve existing offline telephone
 protocol/listener tests passed, covering 20 ms PCM framing, resampling, interruption
 flush, pacing, socket validation, admission and cleanup. The full telephone test
@@ -58,6 +172,12 @@ New files:
   and closed outbound test context.
 - `scripts/configure_omantel.py`: standard-library-only review-file generator;
   no Docker, SSH, installation, reload or call operation.
+- `scripts/stage_omantel_existing.py`: private inline candidates and original
+  snapshots for this existing file-mounted PBX.
+- `deploy/omantel/90-omantel.yaml.proposed` and
+  `deploy/omantel/omantel-signaling.nft.proposed` with
+  `omantel-signaling.service.proposed`: approval-only network/firewall
+  proposals, not installed settings.
 - `scripts/inspect_omantel.sh`: Ubuntu read-only audit, including namespace pings.
 - `tests/unit/test_omantel.py`, this guide, and a README link.
 

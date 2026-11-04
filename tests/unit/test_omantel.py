@@ -7,6 +7,7 @@ import tempfile
 import unittest
 
 from scripts.configure_omantel import render, validate
+from scripts.stage_omantel_existing import candidates
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -88,6 +89,55 @@ class OmantelTests(unittest.TestCase):
     def test_checked_in_candidates_match_the_supplied_settings(self):
         for name, contents in render(self.settings).items():
             self.assertEqual((ROOT / "deploy/omantel/staged" / name).read_text(), contents)
+
+    def test_existing_candidates_preserve_authentication_and_linphone_routing(self):
+        sip = ("[transport-udp]\ntype=transport\nprotocol=udp\nbind=0.0.0.0:5060\n\n"
+               "[1001]\ntype=endpoint\ntransport=transport-udp\nauth=auth1001\n"
+               "[auth1001]\ntype=auth\npassword=fixture-private-secret\n")
+        plan = "[from-linphone]\nexten => 2000,1,Dial(WebSocket/pipecat/c(slin16)f(json),30)\n"
+        files = candidates(sip, plan, self.settings, "192.168.1.95")
+        self.assertTrue(files["pjsip.conf"].startswith(
+            sip.replace("bind=0.0.0.0:5060", "bind=192.168.1.95:5060")))
+        self.assertTrue(files["extensions.conf"].startswith(plan))
+        self.assertIn("password=fixture-private-secret", files["pjsip.conf"])
+        self.assertIn("bind=100.127.29.138:5060", files["pjsip.conf"])
+        self.assertNotIn("#include", files["pjsip.conf"])
+        self.assertNotIn("[omantel-secondary]", files["pjsip.conf"])
+
+    def test_existing_candidates_refuse_duplicates_unknown_binds_or_unsafe_stage(self):
+        sip = "[transport-udp]\ntype=transport\nprotocol=udp\nbind=0.0.0.0:5060\n"
+        for candidate in (sip + "[omantel-primary]\n", sip + sip,
+                          sip.replace("0.0.0.0", "192.168.1.95")):
+            with self.assertRaises(ValueError):
+                candidates(candidate, "", self.settings, "192.168.1.95")
+        with self.assertRaises(ValueError):
+            candidates(sip, "[from-omantel]\n", self.settings, "192.168.1.95")
+        with self.assertRaises(ValueError):
+            candidates(sip, "", {**self.settings, "inbound_mode": "ai"}, "192.168.1.95")
+
+    def test_existing_cli_only_writes_private_review_copies(self):
+        with tempfile.TemporaryDirectory() as temp:
+            base = Path(temp)
+            source = base / "pbx" / "config"
+            source.mkdir(parents=True)
+            originals = {
+                "pjsip.conf": "[transport-udp]\ntype=transport\nprotocol=udp\nbind=0.0.0.0:5060\n",
+                "extensions.conf": "[from-linphone]\nexten => 2000,1,Hangup()\n",
+            }
+            for name, data in originals.items():
+                (source / name).write_text(data)
+            before = {name: (source / name).read_bytes() for name in originals}
+            output = base / "review"
+            command = [sys.executable, "-m", "scripts.stage_omantel_existing", "--pbx-dir",
+                       str(source.parent), "--settings", str(ROOT / "deploy/omantel/settings.example.json"),
+                       "--linphone-ip", "192.168.1.95", "--output", str(output)]
+            result = subprocess.run(command, cwd=ROOT, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(before, {name: (source / name).read_bytes() for name in originals})
+            for name, data in before.items():
+                self.assertEqual((output / ("original-" + name)).read_bytes(), data)
+            self.assertEqual(len(json.loads((output / "source-sha256.json").read_text())), 2)
+            self.assertNotEqual(subprocess.run(command, cwd=ROOT, capture_output=True).returncode, 0)
 
     def test_cli_cannot_overwrite_existing_config_directory(self):
         with tempfile.TemporaryDirectory() as temp:

@@ -1,0 +1,9 @@
+# REVIEW ONLY. Requires explicit firewall approval before applying.
+# Adds one independent table; never flush the existing ruleset or Docker tables.
+table inet omantel_signaling {
+    chain input {
+        type filter hook input priority -10; policy accept;
+        iifname "enp11s0" ip saddr { 212.72.15.217, 212.72.15.220 } ip daddr 100.127.29.138 udp dport 5060 counter accept
+        ip daddr 100.127.29.138 udp dport 5060 counter drop
+    }
+}

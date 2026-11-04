@@ -1,0 +1,16 @@
+# REVIEW ONLY. Requires explicit firewall approval before installation/enabling.
+# Intended files: /etc/omantel-signaling.nft and
+# /etc/systemd/system/omantel-signaling.service
+[Unit]
+Description=Restrict Omantel SIP signaling to authorized SBCs
+After=nftables.service
+Before=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/sbin/nft -f /etc/omantel-signaling.nft
+ExecStop=/usr/sbin/nft delete table inet omantel_signaling
+
+[Install]
+WantedBy=multi-user.target

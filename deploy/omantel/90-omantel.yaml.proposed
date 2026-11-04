@@ -1,0 +1,19 @@
+# REVIEW ONLY. Do not install/apply until network ownership is checked and approved.
+# Intended new file: /etc/netplan/90-omantel.yaml
+# Preserve the existing enp10s0 and wlp9s0 configuration files.
+network:
+  version: 2
+  ethernets:
+    enp11s0:
+      renderer: networkd
+      dhcp4: false
+      dhcp6: false
+      accept-ra: false
+      optional: true
+      addresses:
+        - 100.127.29.138/30
+      routes:
+        - to: 212.72.15.217/32
+          via: 100.127.29.137
+        - to: 212.72.15.220/32
+          via: 100.127.29.137
