@@ -86,7 +86,7 @@ The packaged Bank Nizwa configuration is:
 
 Optional `survey_ids` adds explicitly allowed alternative surveys. A client cannot
 select an arbitrary file or a survey belonging only to another agent. Optional
-`voice` accepts `provider` (`azure` or `cartesia`) and `voice_id`. Preferences and
+`voice` accepts `provider` (`azure`, `cartesia` or `munsit`) and `voice_id`. Preferences and
 language are passed to each service instance without modifying process environment
 variables. Arabic agent locale `ar-OM` maps to the manager's fixed `ar` output
 language; STT keeps the locale. TTS uses the selected provider's configured voice.
@@ -354,7 +354,7 @@ initializers); `conversation/{composer,rendering}.py`; `questionnaires/municipal
 
 Modified: `api/{sessions,signaling,survey_chat,telephony}.py`;
 `conversation/{manager,models,prompts}.py`; `voice/{pipeline,survey}.py`;
-`providers/{foundry_llm,azure_stt,azure_tts,cartesia_tts,tts}.py`; `config.py`;
+`providers/{foundry_llm,azure_stt,azure_tts,cartesia_tts,munsit_tts,tts}.py`; `config.py`;
 both frontends' HTML/JavaScript/CSS; `tests/browser/survey_chat_browser.mjs`;
 `.env.example`; `pyproject.toml`; `README.md`; `docs/ARCHITECTURE.md`.
 No Docker, transport implementation or real customer records were modified.

@@ -21,6 +21,12 @@ def load_settings(*, service=None):
             if service == "tts":
                 required = []
             required.append("CARTESIA_API_KEY")
+        elif tts_provider() == "munsit":
+            from voice_agent.providers.munsit_tts import munsit_settings
+            munsit_settings()
+            if service == "tts":
+                required = []
+            required.append("MUNSIT_API_KEY")
     missing = [key for key in required if not os.getenv(key) or
                os.environ[key].startswith("your_")]
     if missing:

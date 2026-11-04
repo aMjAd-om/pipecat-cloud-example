@@ -1,10 +1,11 @@
 # Self-hosted Azure voice agent
 
 Browser microphone → native Pipecat SmallWebRTC → continuous Azure Speech STT →
-Foundry GPT-4.1-mini → streaming Azure or Cartesia TTS → SmallWebRTC → browser speaker.
+Foundry GPT-4.1-mini → streaming Azure, Cartesia or Munsit TTS → SmallWebRTC → browser speaker.
 
 Speech output defaults to Azure. See [Cartesia setup and switching](docs/CARTESIA_TTS.md)
 to select Sonic 3.6 for both browser and Asterisk calls through `TTS_PROVIDER`.
+For Arabic Faseeh speech with your Munsit voice, see [Munsit setup](docs/MUNSIT_TTS.md).
 
 No Daily account, key, hosted room, browser SDK, or Pipecat Cloud runtime is used.
 

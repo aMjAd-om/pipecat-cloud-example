@@ -4,7 +4,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 class VoicePreferences(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
-    provider: Literal["azure", "cartesia"] | None = None
+    provider: Literal["azure", "cartesia", "munsit"] | None = None
     voice_id: str | None = Field(default=None, min_length=1, max_length=200)
 
 

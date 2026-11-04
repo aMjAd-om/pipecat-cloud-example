@@ -6,8 +6,8 @@ from voice_agent.providers.cartesia_tts import StreamingCartesiaTTS
 
 def tts_provider():
     provider = os.getenv("TTS_PROVIDER", "azure").strip().lower()
-    if provider not in ("azure", "cartesia"):
-        raise ValueError("TTS_PROVIDER must be azure or cartesia")
+    if provider not in ("azure", "cartesia", "munsit"):
+        raise ValueError("TTS_PROVIDER must be azure, cartesia or munsit")
     return provider
 
 
@@ -21,5 +21,8 @@ def create_tts(*, timing=None, language=None, preferences=None):
     logger.info("TTS provider={}", provider)
     if provider == "cartesia":
         return StreamingCartesiaTTS(timing=timing, **options)
+    if provider == "munsit":
+        from voice_agent.providers.munsit_tts import StreamingMunsitTTS
+        return StreamingMunsitTTS(timing=timing, **options)
     from voice_agent.providers.azure_tts import StreamingAzureTTS
     return StreamingAzureTTS(timing=timing, **options)

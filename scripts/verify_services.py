@@ -43,7 +43,8 @@ def speech_config():
 
 async def tts_check():
     from voice_agent.providers.tts import tts_provider, create_tts
-    if tts_provider() == "cartesia":
+    provider = tts_provider()
+    if provider in ("cartesia", "munsit"):
         from pipecat.frames.frames import ErrorFrame, TTSAudioRawFrame
         tts = create_tts()
         start, first, size = time.monotonic(), None, 0
@@ -57,7 +58,7 @@ async def tts_check():
                     size += len(frame.audio)
             if not size:
                 raise RuntimeError("No streaming audio")
-            print(f"TTS cartesia PASS bytes={size} first_audio_ms={(first-start)*1000:.1f}")
+            print(f"TTS {provider} PASS bytes={size} first_audio_ms={(first-start)*1000:.1f}")
         finally:
             await tts.close()
         return

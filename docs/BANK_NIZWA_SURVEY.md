@@ -16,7 +16,7 @@ The same questionnaire works in the voice agent and the local text conversation
 lab. Telephone pickup already says `السلام عليكم` and waits for a response, so
 the questionnaire introduction continues directly without another greeting:
 
-> معك المساعد الذكي. نجري استبيان قصير عن زيارتك الأخيرة لبنك نزوى، للتجربة فقط وغير تابع للبنك.
+> معك المساعد الذكي من شركة داتامايننج. نتواصل معك بخصوص زيارتك الأخيرة لبنك نزوى.
 > ممكن ناخذ دقيقة من وقتك؟ نحب نعرف رأيك في الزيارة.
 
 After consent, the agent asks four questions, one at a time:
