@@ -2,10 +2,10 @@
 # Install the application package as well as its dependencies.
 -e .
 # Install Speech directly because Pipecat's azure extra pins the affected 1.42.x SDK.
-pipecat-ai[openai,silero,webrtc]==0.0.72
+pipecat-ai[openai,silero]==0.0.72
 azure-cognitiveservices-speech~=1.48.2
 openai~=1.70.0
 python-dotenv~=1.0.1
 fastapi~=0.115.6
 uvicorn~=0.34.0
-av==14.2.0; sys_platform == 'win32'
+websockets~=13.1

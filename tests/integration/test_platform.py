@@ -6,17 +6,13 @@ from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import patch
-import httpx
 from starlette.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
-from tests.integration.test_sessions import FakeConnection, SDP
 from tests.integration.test_telephony import start_event
 from tests.unit.test_survey import decision
 from voice_agent.agents.models import SessionSelection
 from voice_agent.agents.runtime import create_runtime
-from voice_agent.api.app import create_app
-from voice_agent.api.sessions import Sessions
 from voice_agent.api.survey_chat import create_app as chat_app
 from voice_agent.api.telephony import create_telephony_app
 from voice_agent.tools.registry import default_tools
@@ -79,30 +75,3 @@ class PlatformChatTests(unittest.TestCase):
                             ws.receive_bytes()
                 self.assertEqual(seen[0].context.customer.name, 'أحمد')
                 self.assertEqual(seen[0].manager.session_id, 'trusted-channel')
-
-
-class PlatformVoiceTests(unittest.IsolatedAsyncioTestCase):
-    async def test_selection_preloads_runtime_before_webrtc_and_preserves_session_ownership(self):
-        seen = []
-        async def pipeline(connection, *, stop_event, runtime):
-            seen.append(runtime)
-            await stop_event.wait()
-        sessions = Sessions(pipeline=pipeline, connection_factory=FakeConnection)
-        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=create_app(sessions, validate_settings=False)),
-                                     base_url='http://localhost:7860') as client:
-            body = dict(agent_id='bank_feedback', mock_customer_id='demo-ahmed')
-            with patch.dict(os.environ, {'DEMO_TESTING_ENABLED': 'false'}):
-                self.assertEqual((await client.get('/api/agents')).json(), {'enabled': False})
-                self.assertEqual((await client.post('/api/sessions', json=body)).status_code, 403)
-            with patch.dict(os.environ, {'DEMO_TESTING_ENABLED': 'true'}):
-                response = await client.post('/api/sessions', json=body)
-                self.assertEqual(response.status_code, 200)
-                sid = response.json()['id']
-                self.assertEqual(sessions.items[sid].runtime.context.customer.name, 'أحمد')
-                self.assertFalse(seen)
-                await client.post(f'/api/sessions/{sid}/offer', json={'sdp': SDP, 'type': 'offer'})
-                await asyncio.sleep(0)
-                self.assertEqual(len(seen), 1)
-                self.assertEqual(seen[0].context.call.call_id, sid)
-                self.assertEqual((await client.post('/api/sessions', json={'agent_id': 'unknown'})).status_code, 400)
-        await sessions.shutdown()

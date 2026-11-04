@@ -239,11 +239,11 @@ class EndpointTests(unittest.TestCase):
     def test_real_pipeline_greeting_multiple_turns_resampling_and_cleanup(self):
         from pipecat.frames.frames import (
             InputAudioRawFrame, LLMTextFrame, TTSAudioRawFrame,
-            TTSStoppedFrame, TranscriptionFrame, StartInterruptionFrame,
+            TTSStoppedFrame, TTSTextFrame, TranscriptionFrame, StartInterruptionFrame,
         )
         from pipecat.processors.frame_processor import FrameProcessor
 
-        texts, services, decisions = [], [], []
+        texts, services, decisions, transcripts = [], [], [], []
 
         class STT(FrameProcessor):
             def __init__(self, **kwargs):
@@ -280,6 +280,7 @@ class EndpointTests(unittest.TestCase):
                     texts.append(frame.text)
                     await self.push_frame(TTSAudioRawFrame(b"\x00\x10" * 1200, 24000, 1))
                     await self.push_frame(TTSStoppedFrame())
+                    await self.push_frame(TTSTextFrame(frame.text))
                 else:
                     await self.push_frame(frame, direction)
 
@@ -304,6 +305,9 @@ class EndpointTests(unittest.TestCase):
 
         from voice_agent.voice import pipeline as bot
         from voice_agent.voice.pickup import PickupGreetingProcessor
+        async def observed_pipeline(connection, **options):
+            await bot.main(connection, publish_transcript=lambda role, text: transcripts.append((role, text)),
+                           **options)
         async def wait_closed(client):
             for _ in range(300):
                 if not client.app.state.calls:
@@ -320,7 +324,7 @@ class EndpointTests(unittest.TestCase):
              patch("voice_agent.providers.foundry_llm.FoundryDecisionClient", DecisionClient), \
              patch("voice_agent.voice.pickup.PickupGreetingProcessor", side_effect=lambda *args:
                    PickupGreetingProcessor(*args, pickup_pause=.01, response_pause=.3)):
-            with self.client(bot.main) as client:
+            with self.client(observed_pipeline) as client:
                 with client.websocket_connect("/telephony/media", subprotocols=["media"]) as ws:
                     initial = start_event()
                     ws.send_json(initial)
@@ -347,6 +351,9 @@ class EndpointTests(unittest.TestCase):
                     self.assertEqual(len(decisions), 2)
                     self.assertIn("بشكل عام", texts[2])
                     self.assertIn("السبب", texts[3])
+                    self.assertIn(("agent", "السلام عليكم"), transcripts)
+                    self.assertIn(("customer", "نعم"), transcripts)
+                    self.assertIn(("agent", texts[3]), transcripts)
                     ws.send_bytes(b"\x03\x00" * 320)
                     self.assertEqual(ws.receive_bytes()[:2], b"\x00\x30")
                     ws.send_bytes(b"\x04\x00" * 320)

@@ -1,20 +1,19 @@
 [project]
 name = "azure-voice-agent-local"
 version = "0.1.0"
-description = "Experimental local Pipecat Azure voice agent with self-hosted SmallWebRTC"
+description = "Asterisk telephone agent with a web dialer and live transcripts"
 readme = "README.md"
 requires-python = ">=3.11,<3.13"
 dependencies = [
     # The azure extra pins the affected 1.42.x SDK; install Speech directly below.
-    "pipecat-ai[openai,silero,webrtc]==0.0.72",
+    "pipecat-ai[openai,silero]==0.0.72",
     "azure-cognitiveservices-speech~=1.48.2",
     "openai~=1.70.0",
     "httpx~=0.28.1",
     "python-dotenv~=1.0.1",
     "fastapi~=0.115.6",
     "uvicorn~=0.34.0",
-    # aiortc 1.11 supports av<15; 14.4 has no Windows wheels.
-    "av==14.2.0; sys_platform == 'win32'",
+    "websockets~=13.1",
 ]
 
 [build-system]

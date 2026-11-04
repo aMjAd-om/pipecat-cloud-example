@@ -1,7 +1,6 @@
 .git
 .history
 **/node_modules
-frontend/voice/dist
 .env
 .env.*
 .venv
@@ -11,3 +10,6 @@ tests
 *.wav
 *.log
 **/*.egg-info
+recovery-output
+voice-backups
+voice-recovery-*.tar.gz*

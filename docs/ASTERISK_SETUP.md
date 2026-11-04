@@ -1,6 +1,13 @@
 # Asterisk telephone pilot on local Ubuntu
 
-The application now includes an optional Asterisk WebSocket audio adapter alongside the existing SmallWebRTC browser connection. Start with extension `6000` to test telephone audio, then enable the adapter using step 7 and dial `2000` for the Arabic survey. The implementation is tested offline; an actual Linphone-to-Azure AI call still needs validation on your Ubuntu server.
+For the current working Omantel/AI deployment, lost settings, container recovery
+or replacement-server setup, use [Voice server recovery](VOICE_SERVER_RECOVERY.md).
+This document retains the original local-pilot recipe, including a wildcard SIP
+bind that must not be copied over the deployed Omantel configuration. Successful
+Linphone, carrier Echo and carrier-to-AI tests were subsequently reported by the
+user on 2026-11-04; see the [deployment record](OMANTEL_SIP_TRUNK.md).
+
+The application includes an optional Asterisk WebSocket audio adapter alongside the existing SmallWebRTC browser connection. For a new local pilot, start with extension `6000` to test telephone audio, then enable the adapter using step 7 and dial `2000` for the Arabic survey.
 
 The telephone listener defaults to disabled. Nothing is automatically deployed, and existing Azure integrations and TURN settings are retained.
 

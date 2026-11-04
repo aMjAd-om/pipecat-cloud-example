@@ -180,18 +180,19 @@ class AgentTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("sensitive", error.error)
         await llm._client.close()
 
-    async def test_pipeline_constructs_with_pinned_smallwebrtc_and_service_apis(self):
+    async def test_pipeline_constructs_with_telephone_transport_and_service_apis(self):
         from voice_agent.voice import pipeline as bot
-        from pipecat.transports.network.webrtc_connection import SmallWebRTCConnection
-        connection = SmallWebRTCConnection(ice_servers=[])
+        from voice_agent.transports.asterisk import AsteriskPeer, AsteriskTransport
+        from tests.integration.test_telephony import Wire, start_event
+        peer = AsteriskPeer(Wire(), start_event(), asyncio.Event())
         with patch.dict(os.environ, {
             "AZURE_OPENAI_API_KEY": "test",
             "AZURE_OPENAI_BASE_URL": "https://example.com/openai/v1/",
             "AZURE_OPENAI_DEPLOYMENT": "gpt-4.1-mini",
         }), patch.object(bot.PipelineRunner, "run", AsyncMock()) as run:
-            await bot.main(connection)
+            await bot.main(transport=AsteriskTransport(peer))
             run.assert_awaited_once()
-        await connection.disconnect()
+        await peer.close()
 
     @unittest.skipUnless(os.name == "posix", "Linux signal lifecycle check")
     async def test_sigterm_runs_native_pipeline_cancellation_and_sdk_cleanup(self):

@@ -3,7 +3,7 @@ import os
 from pathlib import Path
 
 PROJECT_ROOT = Path(os.getenv("VOICE_AGENT_ROOT", Path(__file__).resolve().parents[2]))
-VOICE_ASSETS = PROJECT_ROOT / "frontend" / "voice" / "dist"
+DIALER_ASSETS = PROJECT_ROOT / "frontend" / "dialer"
 CHAT_ASSETS = PROJECT_ROOT / "frontend" / "survey-chat"
 QUESTIONNAIRES = PROJECT_ROOT / "questionnaires"
 

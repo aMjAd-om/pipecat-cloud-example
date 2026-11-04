@@ -1,0 +1,11 @@
+{
+  "number_block_start": "21130800",
+  "number_block_end": "21130899",
+  "did": "21130800",
+  "caller_id": "21130800",
+  "outbound_test_numbers": [],
+  "outbound_enabled": false,
+  "secondary_enabled": true,
+  "failover_enabled": false,
+  "inbound_mode": "ai"
+}

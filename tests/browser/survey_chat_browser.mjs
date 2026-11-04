@@ -1,10 +1,13 @@
-import { chromium } from "../../frontend/voice/node_modules/playwright/index.mjs";
+import { chromium } from "playwright";
 import { spawn } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import assert from "node:assert/strict";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-const python = process.platform === "win32" ? ".venv/Scripts/python.exe" : ".venv/bin/python";
-const server = spawn(python, ["tests/browser/serve_survey_chat.py"], {cwd: process.cwd(), stdio: ["ignore", "pipe", "pipe"]});
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
+const python = path.join(root, process.platform === "win32" ? ".venv/Scripts/python.exe" : ".venv/bin/python");
+const server = spawn(python, ["-m", "tests.browser.serve_survey_chat"], {cwd: root, stdio: ["ignore", "pipe", "pipe"], windowsHide: true});
 let errors = ""; server.stderr.on("data", data => { errors += data; });
 const url = `http://127.0.0.1:${process.env.CHAT_TEST_PORT || "17862"}`;
 let browser;
@@ -17,8 +20,7 @@ try {
   }
   assert(ready, "Chat fixture failed to start");
   browser = await chromium.launch({headless: true,
-    ...(process.env.BROWSER_PATH ? {executablePath: process.env.BROWSER_PATH} : process.platform === "win32"
-      ? {executablePath: "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe"} : {})});
+    ...(process.env.BROWSER_PATH ? {executablePath: process.env.BROWSER_PATH} : {})});
   const page = await browser.newPage({viewport: {width: 1440, height: 1050}});
   const pageErrors = []; page.on("pageerror", error => pageErrors.push(error.message));
   await page.goto(url);

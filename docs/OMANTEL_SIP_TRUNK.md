@@ -1,7 +1,13 @@
 # Omantel SIP trunk: staged configuration and deployment record
 
-Status on 2026-11-04: **configuration staged; user-supplied Ubuntu audit reviewed;
-trunk not installed or verified**.
+**For an outage or lost configuration, start with
+[Voice server recovery](VOICE_SERVER_RECOVERY.md).** It contains the current
+configuration map, private backup command, full reconstruction bundle and ordered
+restore procedures. The initial staged files below intentionally retain safe
+primary/Echo defaults and are not a complete copy of the final AI/two-peer setup.
+
+Status on 2026-11-04: **primary trunk installed; primary contact available;
+incoming pilot Echo and initial carrier-to-AI call reported successful**.
 The supplied block `211308XX` is configured as `21130800`–`21130899`.
 The pilot DID and outbound identity are `21130800`. Service line `9999421`
 is retained here as an account reference, not a seven-digit SIP caller ID.
@@ -9,9 +15,56 @@ No outbound test destination or call approval has been supplied.
 
 The user subsequently approved the proposed Netplan and Omantel SIP firewall
 changes, including the dedicated firewall startup service. That approval remains
-valid for this session. It does not approve an Asterisk restart or telephone calls.
-Application on Ubuntu and its verification results are still pending; this
-Windows workspace has no established SSH connection to that server.
+valid for this session. The user has now also explicitly approved installing the
+staged PBX files and restarting `voice-pbx-asterisk-1` once idle. The first incoming
+Echo test was subsequently approved and the user reports Echo on `21130800`
+worked. Outbound calls remain unapproved. Do not request the same
+installation/restart or first incoming-test approval again.
+The user has now supplied post-change runtime verification: the Omantel address
+and both SBC routes are correct; both SBCs respond 4/4 with averages 3.495 ms
+(primary) and 3.756 ms (secondary). The internet path remains via `enp10s0`, source
+`192.168.1.95`, and Pipecat health is ok with zero calls. Asterisk still shows only
+the original wildcard UDP transport, as expected before the PBX change.
+The user subsequently supplied the installed Netplan YAML and networkctl output:
+`enp11s0` is configured/online under
+`/run/systemd/network/10-netplan-enp11s0.network`. The firewall service is enabled,
+active (exited), and its start command succeeded. Its table contains the approved
+SBC/interface/address restriction, with 12 accepted packets and zero dropped at
+the captured instant. Those counters alone do not establish successful SIP OPTIONS.
+Persistent configuration is installed; an actual reboot has not been tested.
+The staged PBX candidate bindings have been confirmed as `192.168.1.95:5060` and
+`100.127.29.138:5060`. The user reports installation/restart completed and supplied
+`omantel-primary-aor/sip:212.72.15.217:5060` as **Avail**, RTT **48.503 ms**,
+contact hash `c19e1e0db7`. This confirms the reported primary qualification state;
+the OPTIONS packet capture/source headers have not been supplied for independent
+wire-level review. Asterisk-negotiated SDP, RTP packetization and media destination
+details also remain unreviewed. This Windows workspace has no established SSH
+connection to that server.
+
+The pilot was subsequently routed to `Goto(from-linphone,2000,1)` using the
+provided scoped dialplan edit and reload procedure. The user reports calling
+`21130800`, hearing the agent respond, and the call working. This is an initial
+carrier-to-AI success report, not independently observed SDP/RTP or a complete
+interruption/cleanup acceptance test. The Echo-route snapshot is
+`/home/data_mining/voice-pbx/omantel-review/extensions-before-ai.conf`.
+Confirm the health call count returns to zero after hangup, capture the negotiated
+Omantel SDP, and test Arabic conversation, interruption and repeated calls.
+
+The user subsequently reports that the secondary endpoint/AOR/identify setup and
+monitoring procedure also completed successfully. No raw secondary contact row
+or packet capture was supplied, so record it as user-reported success, not an
+independently observed failover test. The procedure was to load the secondary
+sections for independent OPTIONS monitoring after the primary's successful tests.
+Append the secondary fragment to the existing mounted `pjsip.conf`, preserving its
+inode and saving a private pre-change snapshot. The existing `omantel-udp`
+transport is reused, so reload `res_pjsip.so` and
+`res_pjsip_endpoint_identifier_ip.so`; no new transport/restart is needed.
+These are the relevant modules used by the upstream
+[PJSIP reload alias](https://github.com/asterisk/asterisk/blob/master/configs/samples/cli_aliases.conf.sample).
+The secondary uses the same exact-DID inbound context, so adding its identify
+also permits the trusted secondary to deliver the pilot inbound call. Outbound
+calling and automatic call failover remain disabled. Do not claim redundancy
+until actual secondary routing and failure behavior have been tested.
 
 For the approved network rollout, generate backend configuration in a private
 staging root using `netplan generate --root-dir`, retaining all existing Netplan
@@ -32,22 +85,25 @@ documents reloading definitions and reconfiguring interfaces.
 The checkout is on Windows, with no Docker executable. The separate Ubuntu PBX
 configuration is not in this repository. The user supplied an audit captured at
 11:31 Dubai time (07:31 UTC) on 2026-11-04. Findings below come from that snapshot,
-not direct SSH access. No production configuration has been changed by this task.
+not direct SSH access. The user subsequently ran the approved network rollout
+steps and supplied the runtime verification recorded above, followed by the
+reported PBX installation/restart, available primary contact, successful Echo,
+and an initial successful carrier-to-AI call.
 
 | Item | Repository evidence | Live status |
 |---|---|---|
 | Asterisk Compose | `/home/data_mining/voice-pbx/compose.yml`; five individual read-only config mounts | Supplied Compose confirms host networking and existing image build; no Compose change needed for inline fragments |
 | Version | Runtime `core show version` | Asterisk 22.11.0 |
-| Local SIP | Live `pjsip.conf` and endpoint inspection, followed by user call confirmation | Authenticated `1001`, A-law/mu-law, wildcard UDP/5060; user confirms `2000@192.168.1.95` works; no contact was registered at the earlier audit instant |
+| Local SIP | Initial audit followed by approved bind changes and user call confirmation | Authenticated `1001`, A-law/mu-law; LAN `.95:5060` and carrier `.138:5060` candidate binds confirmed and applied by user; Linphone reported working |
 | Dialplan | Live dialplan and mounted file | `6000@from-linphone` Echo and `2000@from-linphone` WebSocket/slin16/json confirmed |
 | RTP | Runtime settings and mounted file | UDP 10000–10100, strict RTP enabled; carrier media ranges remain unknown |
 | Media bridge | WebSocket module and loopback health | Module loaded; `127.0.0.1:7861/health` reports ok, zero calls; A-law/8 kHz to slin/16 kHz translation exists, reverse/live audio not tested |
 | Agent networking | `docker-compose.ubuntu.yml` uses host networking; development Compose uses bridge networking | Deployed agent mode unknown |
-| Network | Host/Asterisk namespace and subsequent nmcli output | Address and both `/32` routes correct; both peers 4/4 pings, primary average 3.258 ms, secondary 3.971 ms; Omantel externally configured, autoconnect no; persistence not confirmed |
+| Network | Audits followed by approved rollout and networkctl/Netplan confirmation | Address and `/32` routes correct; post-change primary/secondary pings 4/4, averages 3.495/3.756 ms; networkd manages Omantel and persistent YAML is installed; reboot untested |
 | Internet/Azure | Current default route is via `192.168.1.1` on `enp10s0`, source `192.168.1.95`; Wi-Fi backup uses `.102`, metric 600 | Default internet route exists; Azure connectivity not tested |
-| Firewall | UFW inactive; IPv4 INPUT accepts with no displayed SIP source restriction; Docker rules primarily affect forwarding | No host SIP ingress restriction shown; upstream router exposure unknown |
-| OPTIONS | Independent AORs configured for 30-second qualification | Neither SBC tested; no availability claim |
-| Calls/redundancy | Restricted candidate dialplan prepared | No inbound, outbound, AI, or failover calls performed |
+| Firewall | Initial UFW inactive/INPUT accepting; approved guard subsequently installed | Dedicated service enabled/active and approved table confirmed; 12 accepted/0 dropped packets in supplied snapshot; upstream router exposure unknown |
+| OPTIONS | Primary AOR output and subsequent secondary success report | Primary Avail, RTT 48.503 ms; secondary setup/monitoring reported successful; raw secondary/capture output not supplied |
+| Calls/redundancy | User confirms pilot Echo and then AI response on `21130800` | Initial incoming AI call reported working; carrier SDP/RTP details, interruption/cleanup, outbound, secondary and failover remain unverified |
 
 ## Next steps for the audited server
 
@@ -137,8 +193,9 @@ a private directory (0700) with SIP files 0600. Original snapshots are retained
 byte-for-byte. The files contain the real SIP password; do not share full files
 or raw diffs. The helper never installs, reloads, restarts, contacts an SBC or
 changes networking. The nft check validates the candidate without applying it.
-Netplan generation still needs validation on Ubuntu; no Netplan validation tool
-is available in this Windows workspace.
+The approved Netplan was subsequently generated/applied on Ubuntu and its
+installed YAML/networkd ownership confirmed by the user. Future edits still need
+Ubuntu validation; this Windows workspace cannot run Netplan itself.
 
 Local verification: ten Omantel policy/renderer/staging tests passed. They check number
 boundaries, configuration injection rejection, safe defaults, isolated primary and
@@ -177,12 +234,14 @@ New files:
 - `deploy/omantel/90-omantel.yaml.proposed` and
   `deploy/omantel/omantel-signaling.nft.proposed` with
   `omantel-signaling.service.proposed`: approval-only network/firewall
-  proposals, not installed settings.
+  reference copies of the approved host settings installed by the user.
 - `scripts/inspect_omantel.sh`: Ubuntu read-only audit, including namespace pings.
 - `tests/unit/test_omantel.py`, this guide, and a README link.
 
-No application provider, transport implementation, existing Compose, local SIP,
-Netplan, firewall, or running container was changed.
+Application provider and transport implementations and the existing application
+Compose were preserved. The user applied the approved carrier Netplan/firewall
+configuration and PBX file changes/restart, then the AI dialplan and secondary
+reload procedures. No further server mutation is performed by the recovery docs.
 
 Both peer fragments contain:
 

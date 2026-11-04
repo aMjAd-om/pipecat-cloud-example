@@ -1,0 +1,5 @@
+# Add to the existing PBX Compose file; preserves its five working config mounts.
+services:
+  asterisk:
+    volumes:
+      - ./config/manager.conf:/etc/asterisk/manager.conf:ro

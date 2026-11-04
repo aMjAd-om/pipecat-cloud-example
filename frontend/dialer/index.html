@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Call desk · Voice agent</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/style.css">
+  <script src="/main.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="Call desk home"><span class="brand-mark" aria-hidden="true">↗</span>call desk<span class="brand-divider"></span><span class="brand-caption">VOICE AGENT</span></a>
+    <div class="connection"><span id="connection-dot" class="dot"></span><span id="connection-label">Connecting</span></div>
+  </header>
+  <main>
+    <div class="page-heading"><div><p class="eyebrow">YOUR CONVERSATION WORKSPACE</p><h1>A good conversation<br>starts with a call.</h1><p class="subtitle">Connect your agent to a customer. Follow every reply as it happens.</p></div><div class="heading-note"><span class="tiny-wave" aria-hidden="true">▂ ▅ ▃ ▇ ▄</span><span>One call.<br>A real conversation.</span></div></div>
+    <div class="workspace">
+      <aside>
+        <section class="card dial-card" aria-labelledby="dial-title">
+          <div class="section-label"><span class="step">01</span> MAKE A CONNECTION</div>
+          <h2 id="dial-title">Who are we calling?</h2>
+          <form id="call-form">
+            <label for="phone">Customer phone number</label>
+            <div class="phone-field"><span class="country">OM <span>+968</span></span><input id="phone" name="phone" type="tel" inputmode="tel" autocomplete="tel-national" placeholder="Enter 8-digit number" maxlength="24" required aria-describedby="phone-hint"></div>
+            <p id="phone-hint" class="field-hint">Oman numbers · +968 prefix is also accepted</p>
+            <button id="call-button" class="primary" type="submit" disabled><span aria-hidden="true">↗</span> Call customer</button>
+          </form>
+          <button id="hangup-button" class="hangup" type="button" hidden>End call</button>
+          <p id="error" class="error" role="alert" hidden></p>
+          <div class="call-details"><div><span>Calling from</span><strong>2113 0800</strong></div><div><span>Agent</span><strong>Your configured agent</strong></div></div>
+        </section>
+        <section class="status-card" aria-label="Call status"><div class="status-top"><span id="status-dot" class="dot"></span><strong id="call-status">Ready when you are</strong><span id="duration">00:00</span></div><p id="status-detail">Enter a number to start a conversation.</p><p id="active-number" class="active-number" hidden></p></section>
+        <p class="desk-note">The conversation happens over the phone.<br>Your browser follows along.</p>
+      </aside>
+      <section class="card transcript-card" aria-labelledby="transcript-title">
+        <div class="transcript-heading"><div><div class="section-label"><span class="step">02</span> FOLLOW THE CONVERSATION</div><h2 id="transcript-title">Live transcript</h2></div><span id="live-badge" class="live-badge"><span class="dot"></span><span id="live-label">STANDBY</span></span></div>
+        <div id="transcript" class="transcript" role="log" aria-live="polite" aria-relevant="additions text" aria-label="Agent and customer conversation">
+          <div id="empty-state" class="empty-state"><div class="conversation-icon" aria-hidden="true">“</div><h3>Every word, in one place.</h3><p>When your customer answers, the agent's words<br>and their replies will appear here.</p><div class="legend"><span><i class="agent-key"></i>Agent</span><span><i class="customer-key"></i>Customer</span></div></div>
+        </div>
+        <footer class="transcript-footer"><span id="transcript-note">Waiting for a call</span><button id="download" type="button" disabled>↓ Download transcript</button></footer>
+      </section>
+    </div>
+    <footer class="page-footer"><span>CALL DESK</span><span>Powered by your voice agent</span></footer>
+  </main>
+</body>
+</html>

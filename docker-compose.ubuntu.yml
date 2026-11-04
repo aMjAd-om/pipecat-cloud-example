@@ -1,4 +1,4 @@
-# Ubuntu/Linux host networking exposes ICE UDP sockets on the host's interfaces.
+# Ubuntu/Linux host networking reaches Asterisk's loopback AMI and media sockets.
 # This file is standalone; do not combine it with the bridge-network development file.
 services:
   agent:

@@ -1,0 +1,7 @@
+{
+  "name": "call-desk-browser-tests",
+  "private": true,
+  "type": "module",
+  "scripts": { "test:dialer": "node dialer.mjs", "test:chat": "node survey_chat_browser.mjs" },
+  "devDependencies": { "playwright": "1.56.1" }
+}

@@ -32,7 +32,7 @@ def selection_for_call(channel_id):
     return selection
 
 
-def create_telephony_app(*, pipeline=None):
+def create_telephony_app(*, pipeline=None, dialer=None):
     if pipeline is None:
         from voice_agent.voice.pipeline import main
         pipeline = main
@@ -66,6 +66,7 @@ def create_telephony_app(*, pipeline=None):
             return
         await ws.accept(subprotocol="media")
         peer = None
+        web_call = None
         key = None
         stage = "handshake"
         try:
@@ -79,11 +80,18 @@ def create_telephony_app(*, pipeline=None):
                 await ws.close(code=1013)
                 return
             stop = asyncio.Event()
+            identity = ws.query_params.get("call_id")
+            if identity:
+                if dialer is None:
+                    raise ValueError("Web call control is not configured")
+                web_call = dialer.attach(identity, key, stop)
             selection = selection_for_call(key)
             runtime = (create_runtime(selection, session_id=key)
                        if os.getenv("AGENT_ID") or any(selection.model_dump().values()) else None)
             peer = AsteriskPeer(ws, start, stop)
             calls[key] = peer
+            if dialer is not None:
+                dialer.media[key] = identity
             logger.info("Telephone call started; active={}", len(calls))
             stage = "transport_startup"
             transport = AsteriskTransport(peer)
@@ -91,6 +99,8 @@ def create_telephony_app(*, pipeline=None):
             try:
                 stage = "pipeline"
                 options = {"runtime": runtime} if runtime else {}
+                if web_call:
+                    options["publish_transcript"] = lambda role, text: dialer.transcript(identity, role, text)
                 await pipeline(None, stop_event=stop, transport=transport, **options)
             finally:
                 timer.cancel()
@@ -101,12 +111,16 @@ def create_telephony_app(*, pipeline=None):
             logger.warning("Telephone call rejected or failed; stage={} type={} reason={}",
                            stage, type(exc).__name__, reason)
         finally:
+            if web_call and web_call.status not in ("completed", "cancelled", "busy", "no_answer", "rejected", "failed"):
+                dialer.spawn(dialer._hangup(web_call))
             if peer:
                 try:
                     await peer.close()
                 finally:
                     if calls.get(key) is peer:
                         del calls[key]
+                    if dialer is not None:
+                        dialer.media.pop(key, None)
                     logger.info("Telephone call ended; active={}", len(calls))
             else:
                 with suppress(Exception):
@@ -116,7 +130,7 @@ def create_telephony_app(*, pipeline=None):
 
 
 @asynccontextmanager
-async def telephone_listener():
+async def telephone_listener(*, dialer=None):
     """Run an additional loopback Uvicorn socket under the main app lifecycle."""
     if os.getenv("TELEPHONY_ENABLED", "false").lower() != "true":
         yield
@@ -127,7 +141,7 @@ async def telephone_listener():
     port = int(os.getenv("TELEPHONY_PORT", "7861"))
     if not 1024 <= port <= 65535 or port == int(os.getenv("PORT", "7860")):
         raise ValueError("TELEPHONY_PORT must be a separate port in 1024..65535")
-    app = create_telephony_app()
+    app = create_telephony_app(dialer=dialer) if dialer is not None else create_telephony_app()
     # Bind synchronously so a port conflict fails startup, rather than leaving
     # the browser healthy while telephone calls fail silently.
     sock = socket.socket()

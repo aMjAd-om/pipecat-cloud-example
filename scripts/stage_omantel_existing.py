@@ -11,7 +11,8 @@ from scripts.configure_omantel import render
 
 def candidates(pjsip, extensions, settings, linphone_ip):
     address = ipaddress.IPv4Address(linphone_ip)
-    if not address.is_private or address.is_loopback or address.is_link_local:
+    if (not address.is_private or address.is_loopback or address.is_link_local
+            or address.is_unspecified or address.is_reserved or address.is_multicast):
         raise ValueError("Linphone bind must be the confirmed private LAN IPv4 address")
     fragments = render(settings)
     if (settings["secondary_enabled"] or settings["failover_enabled"]

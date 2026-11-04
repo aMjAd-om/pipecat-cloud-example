@@ -1,0 +1,15 @@
+; Private AMI listener. Never bind this port to LAN or carrier interfaces.
+[general]
+enabled=yes
+webenabled=no
+port=5038
+bindaddr=127.0.0.1
+displayconnects=no
+
+[web-dialer]
+secret=$ami_secret
+deny=0.0.0.0/0.0.0.0
+permit=127.0.0.1/255.255.255.255
+read=call
+write=originate,call
+writetimeout=5000

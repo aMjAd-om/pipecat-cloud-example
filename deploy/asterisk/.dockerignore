@@ -1,0 +1,7 @@
+.git
+config
+host
+omantel-review*
+*.tar
+*.tar.gz
+.env*

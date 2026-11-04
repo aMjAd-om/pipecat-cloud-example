@@ -1,5 +1,11 @@
 # Asterisk adapter implementation report
 
+Subsequent live results: on 2026-11-04 the user confirmed Linphone, Omantel pilot
+Echo, and an incoming carrier-to-AI call to `21130800` worked. This report below
+retains historical implementation/testing detail. For the current configuration,
+private backup, exact-image restore and full PBX rebuild instructions, use
+[Voice server recovery](VOICE_SERVER_RECOVERY.md).
+
 ## Scope
 
 Added an optional Asterisk `chan_websocket` media entry point for the existing Pipecat 0.0.72 application. It targets the Asterisk 22.11.0 configuration in [the setup guide](ASTERISK_SETUP.md), including extension `2000`, JSON control messages, and `slin16` mono audio at 16 kHz.

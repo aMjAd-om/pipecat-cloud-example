@@ -1,17 +1,13 @@
-"""One isolated survey pipeline per browser or telephone connection."""
+"""One isolated speech pipeline per Asterisk telephone connection."""
 import asyncio
 import os
 
 from loguru import logger
-from pipecat.audio.vad.silero import SileroVADAnalyzer
 from pipecat.pipeline.pipeline import Pipeline
 from pipecat.pipeline.runner import PipelineRunner
 from pipecat.pipeline.task import PipelineParams, PipelineTask
 from pipecat.processors.aggregators.openai_llm_context import OpenAILLMContext
 from pipecat.services.openai.llm import OpenAILLMService
-from pipecat.transports.base_transport import TransportParams
-from pipecat.transports.network.small_webrtc import SmallWebRTCTransport
-from pipecat.processors.frameworks.rtvi import RTVIProcessor
 
 from voice_agent.providers.azure_stt import StreamingAzureSTT
 from voice_agent.providers.foundry_llm import FoundryLLMService
@@ -21,9 +17,11 @@ from voice_agent.observability.timing import LatencyProbe, TurnTiming
 from voice_agent.voice.language import LanguageLockedResponse
 
 
-async def main(connection, *, stop_event=None, transport=None, runtime=None):
-    telephone = transport is not None
-    if telephone and stop_event is None:
+async def main(connection=None, *, stop_event=None, transport=None, runtime=None,
+               publish_transcript=None):
+    if transport is None:
+        raise ValueError("An Asterisk telephone transport is required")
+    if stop_event is None:
         stop_event = asyncio.Event()
     language = os.getenv("DEFAULT_LANGUAGE", "ar")
     survey_enabled = (runtime is not None or os.getenv("AGENT_ID") or
@@ -33,11 +31,6 @@ async def main(connection, *, stop_event=None, transport=None, runtime=None):
         runtime = runtime or create_runtime()
         language = runtime.manager.language
     timing = TurnTiming()
-    transport = transport or SmallWebRTCTransport(connection, TransportParams(
-        audio_in_enabled=True, audio_out_enabled=True,
-        audio_in_sample_rate=16000, audio_out_sample_rate=24000,
-        vad_analyzer=SileroVADAnalyzer(),
-    ))
     speech_options = ({"language": runtime.config.language} if runtime and runtime.config else {})
     stt = StreamingAzureSTT(timing=timing, **speech_options)
     llm = FoundryLLMService(
@@ -59,7 +52,6 @@ async def main(connection, *, stop_event=None, transport=None, runtime=None):
         "Do not repeat a greeting after the first turn."
     )}])
     aggregator = llm.create_context_aggregator(context)
-    rtvi = None if telephone else RTVIProcessor(transport=transport)
     survey_processor = None
     pickup_processor = None
     playback_observer = None
@@ -70,18 +62,22 @@ async def main(connection, *, stop_event=None, transport=None, runtime=None):
         manager = runtime.manager
         survey_processor = SurveyConversationProcessor(manager, runtime.decision_client(
             llm._client, os.environ["AZURE_OPENAI_DEPLOYMENT"]), timing, stop_event=stop_event)
-        if telephone:
-            from voice_agent.voice.pickup import PickupGreetingProcessor
-            pickup_processor = PickupGreetingProcessor(manager, stop_event)
+        from voice_agent.voice.pickup import PickupGreetingProcessor
+        pickup_processor = PickupGreetingProcessor(manager, stop_event)
     conversation = ([survey_processor] if survey_processor else
                     [aggregator.user(), LatencyProbe(timing, "request"), llm])
+    from voice_agent.voice.transcript import TranscriptObserver
+    customer_transcript = ([TranscriptObserver(publish_transcript, "customer")] if publish_transcript else [])
+    agent_transcript = ([TranscriptObserver(publish_transcript, "agent")] if publish_transcript else [])
     pipeline = Pipeline([
-        transport.input(), *([rtvi] if rtvi else []), LatencyProbe(timing, "input"), stt,
+        transport.input(), LatencyProbe(timing, "input"), stt,
+        *customer_transcript,
         *([pickup_processor] if pickup_processor else []),
         *conversation,
         LanguageLockedResponse(language),
         LatencyProbe(timing, "llm"), tts, LatencyProbe(timing, "audio"),
-        transport.output(), *([] if survey_processor else [aggregator.assistant()]),
+        transport.output(), *agent_transcript,
+        *([] if survey_processor else [aggregator.assistant()]),
         *([playback_observer] if playback_observer else []),
     ])
     task = PipelineTask(pipeline, params=PipelineParams(
@@ -95,17 +91,13 @@ async def main(connection, *, stop_event=None, transport=None, runtime=None):
     async def report_error(_task, frame):
         logger.error("Pipeline service error; fatal={}; {}", frame.fatal,
                      safe_diagnostic(frame.error))
-        if rtvi:
-            await rtvi.send_error("A voice service failed. Please stop and restart the conversation.")
-        elif frame.fatal and stop_event:
+        if frame.fatal and stop_event:
             stop_event.set()
 
     greeted = False
 
     async def greet(*_args):
         nonlocal greeted
-        if rtvi:
-            await rtvi.set_bot_ready()
         if not greeted:
             greeted = True
             if pickup_processor:
@@ -117,10 +109,7 @@ async def main(connection, *, stop_event=None, transport=None, runtime=None):
             else:
                 await task.queue_frames([aggregator.user().get_context_frame()])
 
-    if rtvi:
-        rtvi.add_event_handler("on_client_ready", greet)
-    else:
-        transport.add_event_handler("on_client_connected", greet)
+    transport.add_event_handler("on_client_connected", greet)
 
     @transport.event_handler("on_client_disconnected")
     async def leave(_transport, _connection):

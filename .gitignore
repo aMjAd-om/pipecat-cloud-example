@@ -97,3 +97,10 @@ cython_debug/
 # Pipecat cloud
 .pcc-deploy.toml
 /stagehand_test
+
+# Private voice recovery artifacts (contain SIP/Azure credentials)
+/recovery-output/
+/voice-backups/
+voice-recovery-*.tar.gz
+voice-recovery-*.tar.gz.sha256
+voice-recovery-*.tar.gz.gpg
