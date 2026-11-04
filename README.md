@@ -28,6 +28,11 @@ especially step 7 to enable extension `2000`, and the
 loopback listener (`TELEPHONY_ENABLED=false` by default); Ubuntu Docker host
 networking connects it to Asterisk while the browser service keeps its existing path.
 
+For the Omantel IP-authenticated SIP trunk, see the
+[staged configuration, inspection and controlled rollout guide](docs/OMANTEL_SIP_TRUNK.md).
+Its pilot configuration uses the assigned `21130800` number, starts with an Echo
+test route, and keeps outbound calling and secondary failover disabled.
+
 Azure provider implementations, credentials, deployment, prompt, voice selection, and
 VAD settings were preserved during the transport migration. Pipecat remains 0.0.72.
 There was no repository frontend before this change; the previous browser page was
