@@ -29,7 +29,8 @@ class PlatformChatTests(unittest.TestCase):
                         client=('127.0.0.1', 50000)) as client:
             headers = {'X-Survey-Chat-Token': client.get('/api/settings').json()['token']}
             choices = client.get('/api/agents').json()
-            self.assertEqual(len(choices['agents']), 2)
+            self.assertEqual({agent['agent_id'] for agent in choices['agents']},
+                             {'bank_feedback', 'municipality_complaints', 'ministry_labour_feedback'})
             states = []
             for agent_id, customer in [('bank_feedback', 'demo-ahmed'), ('municipality_complaints', 'demo-municipality')]:
                 response = client.post('/api/sessions', headers=headers,

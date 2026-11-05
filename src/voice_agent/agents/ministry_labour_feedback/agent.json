@@ -1,0 +1,12 @@
+{
+  "agent_id": "ministry_labour_feedback",
+  "name": "Ministry of Labour visit feedback",
+  "description": "Feedback about the Ministry of Labour visit on Thursday morning, 5 November 2026, using the Bank Nizwa question sequence.",
+  "prompt_file": "prompt.md",
+  "workflow_type": "survey",
+  "survey_id": "ministry-of-labour.ar",
+  "language": "ar-OM",
+  "tools": [],
+  "context": ["call"],
+  "end_call_on_finish": true
+}

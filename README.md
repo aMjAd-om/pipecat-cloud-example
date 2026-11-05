@@ -75,6 +75,7 @@ questionnaire settings. Provider keys and AMI secrets stay on the server.
 - [Configurable agent platform](docs/MULTI_AGENT_PLATFORM.md)
 - [Cartesia TTS](docs/CARTESIA_TTS.md), [Munsit TTS](docs/MUNSIT_TTS.md)
 - [Customer survey](docs/CUSTOMER_SURVEY.md)
+- [Ministry of Labour visit survey](docs/MINISTRY_OF_LABOUR_SURVEY.md)
 
 The optional text-only survey lab remains separate from the call desk:
 
