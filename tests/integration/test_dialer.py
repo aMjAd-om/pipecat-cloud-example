@@ -138,6 +138,20 @@ class DialerTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(response.status_code, 422)
         self.assertFalse(any(item["Action"] == "Originate" for item in self.pbx.actions))
 
+    async def test_operator_password_accepts_eight_characters_and_rejects_seven(self):
+        with patch.dict(os.environ, {"DIALER_PASSWORD": "eight123"}):
+            app = create_app(self.dialer, validate_settings=False)
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app),
+                                     base_url="http://localhost:7860") as client:
+            self.assertEqual((await client.get("/api/settings", auth=("operator", "eight123"))).status_code, 200)
+            self.assertEqual((await client.get("/api/settings", auth=("operator", "wrong123"))).status_code, 401)
+        with patch.dict(os.environ, {"DIALER_PASSWORD": "seven12"}):
+            with self.assertRaisesRegex(ValueError, "at least 8 characters"):
+                create_app(self.dialer, validate_settings=False)
+        with patch.dict(os.environ, {"DIALER_PASSWORD": "eight123", "ASTERISK_AMI_SECRET": "short123"}):
+            with self.assertRaisesRegex(ValueError, "ASTERISK_AMI_SECRET"):
+                create_app(self.dialer, validate_settings=False)
+
     async def test_request_retry_duplicate_destination_capacity_and_disabled(self):
         first, body = await self.dial()
         self.assertEqual((await self.http.post("/api/calls", json=body)).json()["id"], first["id"])

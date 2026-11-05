@@ -17,7 +17,7 @@ The Python dependency lock no longer includes aiortc, PyAV or their WebRTC stack
 ## Run
 
 Keep your existing private `.env`. For a new checkout, copy `.env.example` and set
-the Azure credentials. Configure `DIALER_PASSWORD` (at least 16 random characters)
+the Azure credentials. Configure `DIALER_PASSWORD` (at least 8 characters)
 and the AMI credentials as described in the deployment guide. The browser uses
 an operator login; use HTTPS or an SSH tunnel. Outbound calls are disabled until
 `OUTBOUND_ENABLED=true` and the PBX setup is installed.

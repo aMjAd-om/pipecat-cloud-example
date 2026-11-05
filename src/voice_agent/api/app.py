@@ -18,8 +18,8 @@ def create_app(dialer=None, *, validate_settings=True):
     dialer = dialer or Dialer()
     username = os.getenv("DIALER_USERNAME", "operator")
     password = os.getenv("DIALER_PASSWORD", "")
-    if password and len(password) < 16:
-        raise ValueError("DIALER_PASSWORD must contain at least 16 characters")
+    if password and len(password) < 8:
+        raise ValueError("DIALER_PASSWORD must contain at least 8 characters")
     if dialer.enabled and (not password or os.getenv("TELEPHONY_ENABLED", "false").lower() != "true"
                            or len(os.getenv("ASTERISK_AMI_SECRET", "")) < 16):
         raise ValueError("Outbound calls require DIALER_PASSWORD, TELEPHONY_ENABLED=true and ASTERISK_AMI_SECRET")

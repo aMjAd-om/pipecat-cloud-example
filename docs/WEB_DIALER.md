@@ -160,6 +160,13 @@ protects the entire page and API. If the proxy also uses Basic authentication,
 use matching credentials or remove its duplicate challenge so Authorization can
 reach the app. Do not expose AMI or port 7861. No browser microphone is needed.
 
+The active settings are in the application's `.env`; the staging fragment was
+copied there during installation and is not read at runtime. `DIALER_PASSWORD`
+requires at least 8 characters. After editing the active `.env`, recreate the
+agent container to load the changed environment. Changing the password minimum
+in application code also requires rebuilding its image. The AMI secret has a
+separate minimum of 16 characters and must match Asterisk's `config/manager.conf`.
+
 1. Confirm **Ready to call** and the intended `TELEPHONY_AGENT_ID`, `AGENT_ID`
    or existing questionnaire configuration.
 2. Enter the approved test destination and press **Call customer**. This places
