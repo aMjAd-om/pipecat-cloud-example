@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, Mock, patch
 
 from pipecat.audio.vad.vad_analyzer import VADState
 from pipecat.frames.frames import (
-    CancelFrame, InputAudioRawFrame, StartInterruptionFrame, TranscriptionFrame,
+    CancelFrame, InputAudioRawFrame, StartInterruptionFrame, TranscriptionFrame, LLMTextFrame,
     UserStartedSpeakingFrame, UserStoppedSpeakingFrame,
 )
 from pipecat.processors.frame_processor import FrameDirection, FrameProcessorSetup
@@ -21,7 +21,9 @@ from voice_agent.observability.audio import OutputAudioActivity
 from voice_agent.observability.timing import TurnTiming
 from voice_agent.providers.azure_stt import StreamingAzureSTT
 from voice_agent.transports.asterisk import AsteriskInput, AsteriskPeer
-from voice_agent.voice.endpointing import STTFinalFrame, UtteranceEndBuffer
+from voice_agent.voice.endpointing import (
+    STTFinalFrame, STTProgressFrame, UtteranceEndBuffer, UtteranceRecoveryProcessor, UtteranceRetryFrame,
+)
 
 D = FrameDirection.DOWNSTREAM
 
@@ -65,6 +67,8 @@ class UtteranceTests(unittest.IsolatedAsyncioTestCase):
         frame = STTFinalFrame(text, "caller", "recognition-event", "en")
         if end is not None:
             frame.metadata["stt_audio_end"] = end
+            frame.metadata["stt_recognition_end"] = end
+            frame.metadata["stt_generation"] = 1
         return frame
 
     def stopped(self, end=None):
@@ -92,6 +96,7 @@ class UtteranceTests(unittest.IsolatedAsyncioTestCase):
         processor = self.buffer()
         await processor.process_frame(UserStartedSpeakingFrame(), D)
         await processor.process_frame(self.final("four", 1), D)
+        await processor.process_frame(STTProgressFrame(1, 1.5), D)
         # Caller continued with a control after a pause shorter than VAD stop.
         await processor.process_frame(self.stopped(2), D)
         await asyncio.sleep(.02)
@@ -134,7 +139,7 @@ class UtteranceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.transcripts()[0].text, "five five")
 
     async def test_incomplete_tail_expires_without_sending_partial_answer(self):
-        processor = self.buffer(final_timeout=.02)
+        processor = self.buffer(final_timeout=.2, settle_seconds=.005)
         failed = asyncio.Event()
 
         async def error(_frame):
@@ -143,6 +148,7 @@ class UtteranceTests(unittest.IsolatedAsyncioTestCase):
         processor.push_error.side_effect = error
         await processor.process_frame(UserStartedSpeakingFrame(), D)
         await processor.process_frame(self.final("four", 1), D)
+        await processor.process_frame(STTProgressFrame(1, 1.5), D)
         await processor.process_frame(self.stopped(2), D)
         await asyncio.wait_for(failed.wait(), 1)
         self.assertEqual(self.transcripts(), [])
@@ -172,6 +178,54 @@ class UtteranceTests(unittest.IsolatedAsyncioTestCase):
         await asyncio.sleep(.01)
         self.assertEqual(self.transcripts(), [])
         processor.push_error.assert_awaited_once()
+
+    async def test_completed_final_with_large_vad_offset_is_released(self):
+        processor = self.buffer(settle_seconds=.005)
+        await processor.process_frame(UserStartedSpeakingFrame(), D)
+        await processor.process_frame(STTProgressFrame(1, .2), D)
+        await processor.process_frame(self.final("yes", 1), D)
+        # Word-end and VAD-end positions need not agree. The old 150 ms check
+        # blocked this completed result until the five-second discard timeout.
+        await processor.process_frame(self.stopped(1.65), D)
+        await asyncio.wait_for(self.ready.wait(), 1)
+        self.assertEqual([f.text for f in self.transcripts()], ["yes"])
+        processor.push_error.assert_not_awaited()
+
+    async def test_old_final_after_new_partial_cannot_clear_later_phrase(self):
+        processor = self.buffer(settle_seconds=.005)
+        await processor.process_frame(UserStartedSpeakingFrame(), D)
+        await processor.process_frame(STTProgressFrame(1, 1.5), D)
+        await processor.process_frame(self.final("three", 1), D)
+        await processor.process_frame(self.stopped(2.6), D)
+        await asyncio.sleep(.015)
+        self.assertEqual(self.transcripts(), [])
+        await processor.process_frame(self.final("actually four", 2), D)
+        await asyncio.wait_for(self.ready.wait(), 1)
+        self.assertEqual(self.transcripts()[0].text, "three actually four")
+
+    async def test_late_partial_for_finalized_phrase_does_not_reopen_recognition(self):
+        processor = self.buffer(settle_seconds=.005)
+        await processor.process_frame(UserStartedSpeakingFrame(), D)
+        await processor.process_frame(self.final("five", 1), D)
+        await processor.process_frame(STTProgressFrame(1, .2), D)
+        await processor.process_frame(self.stopped(2), D)
+        await asyncio.wait_for(self.ready.wait(), 1)
+        self.assertEqual(self.transcripts()[0].text, "five")
+
+    async def test_reconnect_during_utterance_requests_repeat_without_saving_tail(self):
+        processor = self.buffer(final_timeout=.025, settle_seconds=.005)
+        failed = asyncio.Event()
+        processor.push_error.side_effect = lambda _frame: failed.set()
+        await processor.process_frame(UserStartedSpeakingFrame(), D)
+        await processor.process_frame(self.final("three", 1), D)
+        await processor.process_frame(STTProgressFrame(2, 0), D)
+        tail = self.final("four", .5)
+        tail.metadata["stt_generation"] = 2
+        await processor.process_frame(tail, D)
+        await processor.process_frame(self.stopped(2), D)
+        await asyncio.wait_for(failed.wait(), 1)
+        self.assertEqual(self.transcripts(), [])
+        self.assertEqual(sum(isinstance(f, UtteranceRetryFrame) for f in self.sent), 1)
 
 
 class ProviderClockTests(unittest.IsolatedAsyncioTestCase):
@@ -228,6 +282,8 @@ class ProviderClockTests(unittest.IsolatedAsyncioTestCase):
         await asyncio.wait_for(delivered.wait(), 1)
         recognized = stt.push_frame.call_args.args[0]
         self.assertAlmostEqual(recognized.metadata["stt_audio_end"], 10.24)
+        self.assertAlmostEqual(recognized.metadata["stt_recognition_end"], .04)
+        self.assertEqual(recognized.metadata["stt_generation"], 1)
         # A final ending at the discontinuity still belongs to the old span.
         delivered.clear()
         result = NS(text="three", reason=module.speechsdk.ResultReason.RecognizedSpeech,
@@ -252,6 +308,113 @@ class ProviderClockTests(unittest.IsolatedAsyncioTestCase):
 
 
 class SurveyEndpointTests(unittest.IsolatedAsyncioTestCase):
+    async def test_late_pickup_timeout_is_not_spoken_as_a_survey_answer_retry(self):
+        from voice_agent.voice.pickup import PickupGreetingProcessor
+        from tests.unit.test_survey import manager
+        timing = TurnTiming(turn=1)
+        pickup = PickupGreetingProcessor(manager(), asyncio.Event(), timing=timing)
+        pickup.push_frame = AsyncMock()
+        try:
+            await pickup.process_frame(UserStartedSpeakingFrame(), D)
+            # The introduction finishes before the greeting's watchdog expires.
+            pickup._ready = pickup._introducing = True
+            pickup.push_frame.reset_mock()
+            await pickup.process_frame(UtteranceRetryFrame(1), D)
+            pickup.push_frame.assert_not_awaited()
+            timing.turn = 2
+            retry = UtteranceRetryFrame(2)
+            await pickup.process_frame(retry, D)
+            pickup.push_frame.assert_awaited_once_with(retry, D)
+        finally:
+            await pickup.cleanup()
+
+    async def test_recognition_timeout_speaks_one_retry_without_a_model_call_and_recovers(self):
+        from pipecat.pipeline.pipeline import Pipeline
+        from pipecat.pipeline.task import PipelineTask
+        from pipecat.pipeline.runner import PipelineRunner
+        from pipecat.processors.frame_processor import FrameProcessor
+        from pipecat.frames.frames import TTSAudioRawFrame
+        from tests.unit.test_survey import manager, decision
+        from voice_agent.voice.survey import SurveyConversationProcessor
+        from voice_agent.voice.language import LanguageLockedResponse
+
+        survey, timing = manager(), TurnTiming()
+        gate = UtteranceEndBuffer(timing, settle_seconds=.005, final_timeout=.04)
+        invoke = AsyncMock(return_value=(decision(), {}))
+        conversation = SurveyConversationProcessor(survey, invoke, timing)
+        recovery = UtteranceRecoveryProcessor(timing, "ar")
+        spoken, audio = [], []
+        audible = asyncio.Event()
+
+        class FakeTTS(FrameProcessor):
+            async def process_frame(self, frame, direction):
+                await super().process_frame(frame, direction)
+                if isinstance(frame, LLMTextFrame):
+                    spoken.append(frame.text)
+                    await self.push_frame(TTSAudioRawFrame(b"\x00\x30" * 320, 16000, 1))
+                else:
+                    await self.push_frame(frame, direction)
+
+        class AudioSink(FrameProcessor):
+            async def process_frame(self, frame, direction):
+                await super().process_frame(frame, direction)
+                if isinstance(frame, TTSAudioRawFrame):
+                    audio.append(frame.audio)
+                    audible.set()
+                await self.push_frame(frame, direction)
+
+        task = PipelineTask(Pipeline([gate, conversation, recovery, LanguageLockedResponse("ar"),
+                                      FakeTTS(), AudioSink()]))
+        running = asyncio.create_task(PipelineRunner(handle_sigint=False).run(task))
+        first_question = survey.question.id
+        try:
+            # This also covers missing recognition finals entirely: a VAD stop
+            # must start the watchdog even with no buffered transcript.
+            await task.queue_frames([UserStartedSpeakingFrame(), UserStoppedSpeakingFrame()])
+            await asyncio.wait_for(audible.wait(), 2)
+            invoke.assert_not_awaited()
+            self.assertEqual(survey.answers, {})
+            self.assertEqual(survey.question.id, first_question)
+            self.assertEqual(len(spoken), 1)
+            self.assertIn("تعيدها", spoken[0])
+            self.assertTrue(audio[0])
+            await asyncio.sleep(.06)
+            self.assertEqual(len(spoken), 1)
+            # A new answer after the retry follows the normal decision path.
+            audible.clear()
+            final = STTFinalFrame("four", "caller", "new-answer", "en")
+            final.metadata.update(stt_generation=1, stt_recognition_end=3, stt_audio_end=3)
+            stopped = UserStoppedSpeakingFrame()
+            stopped.metadata["speech_audio_end"] = 3.9
+            await task.queue_frames([UserStartedSpeakingFrame(), final, stopped])
+            await asyncio.wait_for(audible.wait(), 2)
+            invoke.assert_awaited_once()
+            self.assertEqual(survey.answers[first_question], 4)
+            self.assertEqual(len(spoken), 2)
+        finally:
+            await task.cancel()
+            await asyncio.wait_for(running, 3)
+
+    async def test_retry_is_suppressed_during_resumed_speech_and_after_new_turn(self):
+        timing = TurnTiming(turn=1)
+        recovery = UtteranceRecoveryProcessor(timing, "en")
+        recovery.push_frame = AsyncMock()
+        try:
+            await recovery.process_frame(UserStartedSpeakingFrame(), D)
+            await recovery.process_frame(UtteranceRetryFrame(1), D)
+            await recovery.process_frame(UserStoppedSpeakingFrame(), D)
+            timing.turn = 2
+            await recovery.process_frame(UtteranceRetryFrame(1), D)
+            self.assertFalse(any(isinstance(c.args[0], LLMTextFrame)
+                                 for c in recovery.push_frame.call_args_list))
+            await recovery.process_frame(UtteranceRetryFrame(2), D)
+            speech = [c.args[0].text for c in recovery.push_frame.call_args_list
+                      if isinstance(c.args[0], LLMTextFrame)]
+            self.assertEqual(len(speech), 1)
+            self.assertIn("repeat", speech[0])
+        finally:
+            await recovery.cleanup()
+
     async def test_real_pipeline_sends_one_complete_correction_or_pause_to_decider(self):
         from pipecat.pipeline.pipeline import Pipeline
         from pipecat.pipeline.task import PipelineTask
@@ -282,10 +445,13 @@ class SurveyEndpointTests(unittest.IsolatedAsyncioTestCase):
                 def segment(text, end):
                     frame = STTFinalFrame(text, "caller", "segment", "en")
                     frame.metadata["stt_audio_end"] = end
+                    frame.metadata["stt_recognition_end"] = end
+                    frame.metadata["stt_generation"] = 1
                     return frame
 
                 try:
-                    await task.queue_frames([UserStartedSpeakingFrame(), segment("three", 1)])
+                    await task.queue_frames([UserStartedSpeakingFrame(), segment("three", 1),
+                                             STTProgressFrame(1, 1.5)])
                     await wait_until(lambda: bool(gate._parts))
                     invoke.assert_not_awaited()
                     stopped = UserStoppedSpeakingFrame()

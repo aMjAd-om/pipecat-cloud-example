@@ -107,9 +107,15 @@ class AgentTests(unittest.IsolatedAsyncioTestCase):
             # Old-session callback must not produce another final.
             await stt._events.put((0, "final", event("stale", "old"), 1.0))
             await asyncio.sleep(0.01)
-            frames = [call.args[0] for call in stt.push_frame.await_args_list]
+            frames = [call.args[0] for call in stt.push_frame.await_args_list
+                      if isinstance(call.args[0], STTFinalFrame)]
             self.assertEqual(len(frames), 2)
             self.assertTrue(all(isinstance(f, STTFinalFrame) for f in frames))
+            from voice_agent.voice.endpointing import STTProgressFrame
+            activity = [call.args[0] for call in stt.push_frame.await_args_list
+                        if isinstance(call.args[0], STTProgressFrame)]
+            self.assertEqual(len(activity), 1)
+            self.assertFalse(hasattr(activity[0], "text"))
         finally:
             worker.cancel()
             await asyncio.gather(worker, return_exceptions=True)

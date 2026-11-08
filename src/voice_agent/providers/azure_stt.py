@@ -15,7 +15,7 @@ from pipecat.services.stt_service import STTService
 from pipecat.utils.time import time_now_iso8601
 from voice_agent.observability.diagnostics import speech_cancellation
 from voice_agent.config import speech_endpoint_settings
-from voice_agent.voice.endpointing import STTFinalFrame
+from voice_agent.voice.endpointing import STTFinalFrame, STTProgressFrame
 
 
 class StreamingAzureSTT(STTService):
@@ -137,6 +137,9 @@ class StreamingAzureSTT(STTService):
             if kind == "partial":
                 self.timing.mark("partial", once=True, at=at)
                 logger.info("STT partial event chars={}", len(result.text))
+                offset = getattr(result, "offset", None)
+                await self.push_frame(STTProgressFrame(generation,
+                    offset / 10_000_000 if isinstance(offset, (int, float)) else None))
                 continue  # Never send partials to the context aggregator.
             if result.reason != speechsdk.ResultReason.RecognizedSpeech:
                 continue
@@ -151,6 +154,10 @@ class StreamingAzureSTT(STTService):
                 result.text, "", time_now_iso8601(),
                 self._language)
             frame.metadata["stt_final_at"] = at
+            frame.metadata["stt_generation"] = generation
+            offset, duration = getattr(result, "offset", None), getattr(result, "duration", None)
+            if isinstance(offset, (int, float)) and isinstance(duration, (int, float)):
+                frame.metadata["stt_recognition_end"] = (offset + duration) / 10_000_000
             if self._audio_clock:
                 # Azure offsets/durations are in 100 ns ticks relative to this
                 # recognizer stream. Map back to the transport's PCM timeline.

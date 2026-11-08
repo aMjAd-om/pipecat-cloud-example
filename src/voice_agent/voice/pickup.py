@@ -10,6 +10,7 @@ from pipecat.frames.frames import (
 )
 from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
 from voice_agent.voice.playback import PlaybackMarkerFrame
+from voice_agent.voice.endpointing import UtteranceRetryFrame
 
 
 @dataclass
@@ -40,6 +41,7 @@ class PickupGreetingProcessor(FrameProcessor):
         self._ready = False
         self._closed = False
         self._introducing = False
+        self._pickup_turn = None
 
     async def _speak(self, text):
         if self.timing:
@@ -113,18 +115,23 @@ class PickupGreetingProcessor(FrameProcessor):
             if self._job is None and not self._closed:
                 self._job = asyncio.create_task(self._run_guarded())
             return
+        if isinstance(frame, UtteranceRetryFrame) and (
+                not self._ready or self._closed or frame.turn == self._pickup_turn):
+            return  # Never retry an opening greeting as a survey answer.
         if not self._ready and not self._closed:
             if isinstance(frame, StartInterruptionFrame) and self._introducing:
                 # Output interruption discards queued markers. A fresh caller
                 # reply may interrupt the introduction without timing out.
                 self._playback_finished.set()
             if isinstance(frame, UserStartedSpeakingFrame) and not self._introducing:
+                self._pickup_turn = self.timing.turn if self.timing else None
                 self._response.set()
                 self._response_finished.clear()
             elif isinstance(frame, UserStoppedSpeakingFrame) and self._response.is_set():
                 self._response_finished.set()
             elif isinstance(frame, TranscriptionFrame):
                 if frame.text.strip() and not self._introducing:
+                    self._pickup_turn = self.timing.turn if self.timing else None
                     self._response.set()
                     self._response_finished.set()
                 # A greeting (including "yes") is never consent to a question

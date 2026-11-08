@@ -10,6 +10,7 @@ from pipecat.frames.frames import (
 )
 from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
 from voice_agent.voice.playback import PlaybackMarkerFrame
+from voice_agent.voice.endpointing import UtteranceRetryFrame
 
 
 @dataclass
@@ -43,13 +44,16 @@ class SurveyConversationProcessor(FrameProcessor):
 
     async def process_frame(self, frame, direction):
         if isinstance(frame, (StartInterruptionFrame, UserStartedSpeakingFrame,
-                              TranscriptionFrame, CancelFrame, EndFrame)):
+                              TranscriptionFrame, UtteranceRetryFrame, CancelFrame, EndFrame)):
             await self._cancel_follow_up()
         if isinstance(frame, (StartInterruptionFrame, CancelFrame, EndFrame)):
             self.manager.interrupt()
         await super().process_frame(frame, direction)
         if direction != FrameDirection.DOWNSTREAM:
             await self.push_frame(frame, direction)
+        elif isinstance(frame, UtteranceRetryFrame):
+            if not (self._ending_call or self.manager.completed or self.manager.cancelled):
+                await self.push_frame(frame, direction)
         elif isinstance(frame, SurveyOpeningFrame):
             await self._speak(self.manager.opening())
         elif isinstance(frame, TranscriptionFrame):

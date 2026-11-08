@@ -63,7 +63,9 @@ latency call=abc123 turn=2 response=4 metric=decision_model_and_tools ms=1250.0
 | `event=speech_end` | VAD has declared the customer finished. The silence window has already elapsed. |
 | `stt_final_after_vad_end` | Azure's final recognition callback relative to VAD stop. A negative value means recognition finished first. |
 | `stt_callback_to_dispatch` | Time from the SDK callback to forwarding its final transcript. A large value suggests callback/event-loop backlog. |
-| `transcript_wait_for_turn_end` | Final transcript dispatch to release of the assembled utterance after VAD stops and recognition covers its last active audio. |
+| `transcript_wait_for_turn_end` | Final dispatch to release after VAD stops, pending recognition finalizes, and a 100 ms settling interval passes. |
+| `event=utterance_endpoint_check` | Numeric VAD-minus-final endpoint difference and pending-recognition/reconnect-gap flags. Different acoustic endpoints are diagnostic, not a reason to reject a completed transcript. |
+| `event=utterance_incomplete` / `event=recognition_retry` | Recognition timed out or exceeded bounds; buffered text is discarded and a retry is spoken without a model call or survey advancement. |
 | `transcript_to_response_start` | Assembled utterance release to response processing, including processor queues and the context aggregator. |
 | `decision_preparation` | Survey response processing to submitting the decision request. |
 | `decision_model_and_tools` | Complete survey decision request, including any retrieval rounds. `event=decision_usage` supplies model/tool call counts, aggregate tool time, and token counts. |

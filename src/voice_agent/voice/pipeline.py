@@ -17,7 +17,7 @@ from voice_agent.providers.tts import create_tts
 from voice_agent.observability.diagnostics import safe_diagnostic
 from voice_agent.observability.timing import LatencyProbe, TurnTiming
 from voice_agent.voice.language import LanguageLockedResponse
-from voice_agent.voice.endpointing import UtteranceEndBuffer
+from voice_agent.voice.endpointing import UtteranceEndBuffer, UtteranceRecoveryProcessor
 
 
 async def main(connection=None, *, stop_event=None, transport=None, runtime=None,
@@ -83,6 +83,7 @@ async def main(connection=None, *, stop_event=None, transport=None, runtime=None
         *customer_transcript,
         *([pickup_processor] if pickup_processor else []),
         *conversation,
+        UtteranceRecoveryProcessor(timing, language),
         LatencyProbe(timing, "llm"), LanguageLockedResponse(language),
         LatencyProbe(timing, "language"), tts, LatencyProbe(timing, "audio"),
         transport.output(), *agent_transcript,

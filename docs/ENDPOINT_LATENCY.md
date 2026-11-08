@@ -50,11 +50,23 @@ Invalid values fail validation at startup.
 ## Recognition and turn boundaries
 
 Recognition finals are buffered while the caller is speaking. After VAD stops,
-the buffer waits until the latest final covers the last VAD-active input audio,
-allowing 150 ms for the detectors' different acoustic boundaries. Azure's
-sample offsets are mapped onto the input PCM clock, accounting for recognizer
-reconnects and audio discarded from queues during interruptions. Internal final
-events survive cancellation of an older response's data queue.
+the buffer waits for a final for any pending recognition phrase, then allows
+100 ms without new recognition activity or resumed speech before release.
+Internal progress/final events survive cancellation of an older response's data
+queue. Progress events contain only numeric metadata; partial text never reaches
+the conversation manager.
+
+The previous gate required Azure's word endpoint to reach VAD's active-audio
+endpoint within 150 ms. A real call delivered a final result, then waited five
+seconds and discarded it because those endpoints disagreed. This strict check
+has been removed: Azure word durations exclude leading/trailing silence and are
+not the same boundary as local VAD. See [Microsoft's recognition timing guide](https://learn.microsoft.com/en-us/azure/ai-services/speech-service/get-speech-recognition-results).
+
+Pending partial phrases are matched with finals inside the recognizer's own
+sample clock, rather than against VAD. A final for an earlier phrase cannot clear
+a later pending phrase. Late partials from an already finalized phrase are
+ignored. A reconnect during an unfinished utterance discards that incomplete
+utterance and requests a repeat instead of saving a fragment across the gap.
 
 For example, if Azure finalizes "three" and then "actually four" before the
 same VAD turn ends, the decider receives "three actually four" once. If the
@@ -64,15 +76,25 @@ tradeoff to assess during calls. Joining preserves words, including repetitions;
 it does not fix the model's known correction or pause interpretation errors
 documented in [the previous experiment](DECISION_LATENCY.md).
 
-There is no added settling delay when both PCM clocks are available. Custom
-transports without this metadata use a 100 ms settling delay after speech ends.
-The buffer allows at most 32 segments / 2000 characters. If an incomplete tail
-has not finalized within five seconds after VAD stops, it discards the buffered
-text and emits a nonfatal pipeline error (`event=utterance_incomplete`) instead
-of sending a partial answer. This error does not itself speak a retry prompt.
-A new speech-start event permits another utterance.
+The 100 ms settling delay applies to all transports. This replaces the earlier
+zero-delay release on the telephone path and gives late recognition events time
+to cancel release. Events delayed beyond that settling interval can still form
+a later turn; include corrections and pauses in telephone regression tests.
+
+The buffer allows at most 32 segments / 2000 characters. A five-second watchdog
+starts at VAD stop even if no final arrived. On incomplete recognition, it
+discards buffered text and emits a nonfatal pipeline error
+(`event=utterance_incomplete`) and a spoken request to repeat through the normal
+language guard, TTS and output path (`event=recognition_retry`). This does not
+call the model, save an answer or advance the survey. Late results from that
+failed attempt are ignored until a new speech-start event. Retries are suppressed
+during the initial pickup handshake, after the survey ends, while the caller is
+speaking, and if a newer turn has superseded the failed attempt.
 
 `event=utterance_released` reports segment and character counts only.
+`event=utterance_endpoint_check` reports the numeric VAD-minus-final difference
+(`vad_minus_final_ms`), pending recognition and reconnect-gap flags. The endpoint
+difference is diagnostic and no longer decides whether a transcript is accepted.
 `transcript_wait_for_turn_end` measures final dispatch to assembled utterance
 release; `transcript_to_response_start` now starts at that release. Together
 they distinguish endpoint waiting from downstream processing.
