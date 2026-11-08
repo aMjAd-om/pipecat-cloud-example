@@ -12,6 +12,7 @@ from voice_agent.providers.azure_tts import StreamingAzureTTS
 from voice_agent.providers.foundry_llm import FoundryLLMService
 from pipecat.services.openai.llm import OpenAILLMService
 from voice_agent.observability.timing import TurnTiming
+from voice_agent.voice.endpointing import STTFinalFrame
 from pipecat.frames.frames import TranscriptionFrame, TTSAudioRawFrame, ErrorFrame
 
 
@@ -108,7 +109,7 @@ class AgentTests(unittest.IsolatedAsyncioTestCase):
             await asyncio.sleep(0.01)
             frames = [call.args[0] for call in stt.push_frame.await_args_list]
             self.assertEqual(len(frames), 2)
-            self.assertTrue(all(isinstance(f, TranscriptionFrame) for f in frames))
+            self.assertTrue(all(isinstance(f, STTFinalFrame) for f in frames))
         finally:
             worker.cancel()
             await asyncio.gather(worker, return_exceptions=True)

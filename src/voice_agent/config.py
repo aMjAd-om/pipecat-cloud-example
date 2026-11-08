@@ -5,8 +5,37 @@ from dotenv import load_dotenv
 from voice_agent.paths import PROJECT_ROOT
 
 
+def bounded_integer(name, default, minimum, maximum, *, allow_blank=False):
+    raw = os.getenv(name, str(default)).strip()
+    if allow_blank and not raw:
+        return None
+    try:
+        value = int(raw)
+    except ValueError:
+        raise ValueError(f"{name} must be an integer between {minimum} and {maximum}") from None
+    if not minimum <= value <= maximum:
+        raise ValueError(f"{name} must be between {minimum} and {maximum}")
+    return value
+
+
+def speech_endpoint_settings():
+    return dict(
+        vad_stop_ms=bounded_integer("TELEPHONY_VAD_STOP_MS", 500, 200, 2000),
+        segmentation_ms=bounded_integer("AZURE_STT_SEGMENTATION_SILENCE_MS", 400, 100, 5000,
+                                        allow_blank=True),
+    )
+
+
+def output_nonsilent_threshold():
+    return bounded_integer("TELEPHONY_NONSILENT_RMS_MIN", 200, 1, 32767)
+
+
 def load_settings(*, service=None):
     load_dotenv(PROJECT_ROOT / ".env", override=False, encoding="utf-8-sig")
+    if service in (None, "stt"):
+        speech_endpoint_settings()
+    if service is None:
+        output_nonsilent_threshold()
     required = ["AZURE_SPEECH_KEY", "AZURE_SPEECH_REGION", "AZURE_OPENAI_API_KEY",
                 "AZURE_OPENAI_BASE_URL", "AZURE_OPENAI_DEPLOYMENT"]
     if service in ("stt", "tts"):

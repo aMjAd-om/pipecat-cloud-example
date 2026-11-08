@@ -10,12 +10,15 @@ from contextlib import suppress
 from loguru import logger
 
 from pipecat.audio.vad.silero import SileroVADAnalyzer
+from pipecat.audio.vad.vad_analyzer import VADParams, VADState
 from pipecat.frames.frames import InputAudioRawFrame, StartInterruptionFrame, TTSAudioRawFrame, TTSStoppedFrame, UserStartedSpeakingFrame
 from pipecat.processors.frame_processor import FrameDirection
 from pipecat.transports.base_input import BaseInputTransport
 from pipecat.transports.base_output import BaseOutputTransport
 from pipecat.transports.base_transport import BaseTransport, TransportParams
 from voice_agent.observability.timing import LatencyPlaybackFrame
+from voice_agent.config import speech_endpoint_settings, output_nonsilent_threshold
+from voice_agent.observability.audio import OutputAudioActivity
 
 
 class MediaProtocolError(ValueError):
@@ -98,6 +101,7 @@ class AsteriskPeer:
         self.playback_timing = None
         self.last_audio_end = None
         self.last_audio_sent = None
+        self.audio_activity = OutputAudioActivity(output_nonsilent_threshold())
 
     async def command(self, command):
         async with self.lock:
@@ -128,16 +132,36 @@ class AsteriskPeer:
                 self.last_audio_end = self.next_send
                 if self.timing:
                     self.timing.last_audio_end = self.next_send
+                if self.audio_activity.observe(data, sent, self.next_send):
+                    trace.mark("transport_first_nonsilent", once=True, at=sent)
+                    trace.stamps["transport_last_nonsilent"] = self.next_send
+                    if self.timing:
+                        self.timing.last_nonsilent_audio_end = self.next_send
+
+    def report_audio_activity(self):
+        if self.playback_timing:
+            trace, activity = self.playback_timing, self.audio_activity
+            if activity.last_nonsilent_end is not None:
+                trace.mark("transport_last_nonsilent", at=activity.last_nonsilent_end)
+            trace.metric("transport_leading_silence", 0, activity.leading_silence)
+            trace.metric("transport_trailing_silence", 0, activity.trailing_silence)
+            logger.info("latency call={} turn={} response={} event=output_audio_activity "
+                        "rms_min={} audio_ms={:.1f} has_nonsilent={}", trace.call_id, trace.turn,
+                        trace.response, activity.rms_min, activity.duration * 1000,
+                        activity.last_nonsilent_end is not None)
 
     async def flush(self):
         self.epoch += 1
         self.next_send = 0
         if self.playback_timing:
+            self.report_audio_activity()
             self.playback_timing.mark("transport_flush")
         self.playback_timing = None
         self.last_audio_end = self.last_audio_sent = None
         if self.timing:
             self.timing.last_audio_end = None
+            self.timing.last_nonsilent_audio_end = None
+        self.audio_activity.reset()
         self.writable.set()
         await self.command("FLUSH_MEDIA")
 
@@ -187,6 +211,17 @@ class AsteriskInput(BaseInputTransport):
         self.owner = owner
         self.receiver = None
         self.diagnostic_task = None
+        self._input_audio_seconds = 0.0
+        self._speech_audio_end = None
+
+    async def _vad_analyze(self, audio_frame):
+        state = await super()._vad_analyze(audio_frame)
+        bytes_per_second = audio_frame.sample_rate * 2 * audio_frame.num_channels
+        self._input_audio_seconds += len(audio_frame.audio) / bytes_per_second
+        audio_frame.metadata["input_audio_end"] = self._input_audio_seconds
+        if state in (VADState.STARTING, VADState.SPEAKING):
+            self._speech_audio_end = self._input_audio_seconds
+        return state
 
     async def start(self, frame):
         await super().start(frame)
@@ -217,6 +252,8 @@ class AsteriskInput(BaseInputTransport):
             self.owner.peer.stats.forwarded_frames += 1
 
     async def _handle_user_interruption(self, frame):
+        if self._speech_audio_end is not None:
+            frame.metadata["speech_audio_end"] = self._speech_audio_end
         if isinstance(frame, UserStartedSpeakingFrame):
             self.owner.peer.stats.vad_starts += 1
             logger.info("Telephone caller speech detected")
@@ -282,10 +319,12 @@ class AsteriskOutput(BaseOutputTransport):
             if isinstance(frame, LatencyPlaybackFrame):
                 self.peer.playback_timing = frame.timing
                 self.peer.last_audio_end = self.peer.last_audio_sent = None
+                self.peer.audio_activity.reset()
                 return
             if isinstance(frame, TTSStoppedFrame) and self.peer.playback_timing:
                 if self.peer.last_audio_end is not None:
                     self.peer.playback_timing.mark("transport_tail", at=self.peer.last_audio_end)
+                    self.peer.report_audio_activity()
         await super().push_frame(frame, direction)
 
     async def start(self, frame):
@@ -353,7 +392,8 @@ class AsteriskTransport(BaseTransport):
             audio_in_enabled=True, audio_out_enabled=True,
             audio_in_sample_rate=16000, audio_out_sample_rate=16000,
             audio_out_10ms_chunks=2,
-            vad_analyzer=vad_analyzer or SileroVADAnalyzer(),
+            vad_analyzer=vad_analyzer or SileroVADAnalyzer(params=VADParams(
+                stop_secs=speech_endpoint_settings()["vad_stop_ms"] / 1000)),
         )
         self._input = AsteriskInput(self, params)
         self._output = AsteriskOutput(peer, params)

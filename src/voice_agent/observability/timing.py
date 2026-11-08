@@ -21,6 +21,7 @@ class TurnTiming:
     response: int = 0
     origin: float = field(default_factory=time.monotonic)
     last_audio_end: float | None = None
+    last_nonsilent_audio_end: float | None = None
 
     def begin(self):
         self.turn += 1
@@ -29,12 +30,15 @@ class TurnTiming:
         if self.last_audio_end is not None:
             self.metric("transport_tail_to_user_start", self.last_audio_end,
                         self.stamps["speech_start"])
+        if self.last_nonsilent_audio_end is not None:
+            self.metric("nonsilent_tail_to_user_start", self.last_nonsilent_audio_end,
+                        self.stamps["speech_start"])
 
     def start_response(self):
         self.response += 1
         # Replace rather than mutate: queued playback keeps its original trace.
         self.stamps = {k: v for k, v in self.stamps.items() if k in (
-            "speech_start", "speech_end", "partial", "final", "final_dispatched")}
+            "speech_start", "speech_end", "partial", "final", "final_dispatched", "utterance_ready")}
         self.mark("llm_start")
 
     def snapshot(self):
@@ -55,7 +59,9 @@ class TurnTiming:
             "partial": (("speech_start", "stt_first_partial"),),
             "final": (("speech_end", "stt_final_after_vad_end"),),
             "final_dispatched": (("final", "stt_callback_to_dispatch"),),
-            "llm_start": (("final_dispatched", "transcript_to_response_start"),),
+            "utterance_ready": (("final_dispatched", "transcript_wait_for_turn_end"),),
+            "llm_start": (("utterance_ready" if "utterance_ready" in self.stamps else "final_dispatched",
+                           "transcript_to_response_start"),),
             "decision_start": (("llm_start", "decision_preparation"),),
             "decision_end": (("decision_start", "decision_model_and_tools"),),
             "llm_first": (("llm_start", "llm_ttft"),),
@@ -68,6 +74,8 @@ class TurnTiming:
                                 ("speech_end", "speech_end_to_transport_audio"),
                                 ("llm_end", "llm_end_to_transport_audio")),
             "transport_tail": (("llm_end", "llm_end_to_transport_tail"),),
+            "transport_first_nonsilent": (("speech_end", "speech_end_to_nonsilent_audio"),
+                                          ("llm_end", "llm_end_to_nonsilent_audio")),
         }
         for start, metric in definitions.get(name, ()):
             if start in self.stamps:

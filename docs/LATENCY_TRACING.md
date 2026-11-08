@@ -5,8 +5,10 @@ Every trace has a random `call` ID, a VAD `turn` number, and a `response` number
 Response numbers also cover pickup greetings and timed reminders. No audio,
 transcripts, phone numbers, credentials, or model request bodies are logged.
 
-These changes add measurements; they do not tune silence windows, prompts,
-streaming behavior, or speech speed. They require deploying the updated code.
+The original tracing adds measurements without changing speech behavior. The
+current [endpointing experiment](ENDPOINT_LATENCY.md) also lowers the silence
+windows and coordinates recognition results with VAD. Deploy the updated code
+to apply it.
 
 The subsequent [decision-latency experiment](DECISION_LATENCY.md) compacts model
 output and removes repeated instructions. Its logs identify `protocol=compact-v1`;
@@ -56,11 +58,13 @@ latency call=abc123 turn=2 response=4 metric=decision_model_and_tools ms=1250.0
 
 | Metric / event | What it measures or tells you |
 | --- | --- |
-| `event=vad_config` | Configured speech-start and speech-stop windows. The current default stop window is 800 ms. This is configuration, not a measured acoustic endpoint. |
+| `event=vad_config` | Configured speech-start and speech-stop windows. The experiment defaults to a 500 ms stop window (previously 800 ms). This is configuration, not a measured acoustic endpoint. |
+| `event=stt_endpoint_config` | Azure segmentation silence setting, now 400 ms by default. |
 | `event=speech_end` | VAD has declared the customer finished. The silence window has already elapsed. |
 | `stt_final_after_vad_end` | Azure's final recognition callback relative to VAD stop. A negative value means recognition finished first. |
 | `stt_callback_to_dispatch` | Time from the SDK callback to forwarding its final transcript. A large value suggests callback/event-loop backlog. |
-| `transcript_to_response_start` | Time from transcript dispatch to response processing, including processor queues and the context aggregator. |
+| `transcript_wait_for_turn_end` | Final transcript dispatch to release of the assembled utterance after VAD stops and recognition covers its last active audio. |
+| `transcript_to_response_start` | Assembled utterance release to response processing, including processor queues and the context aggregator. |
 | `decision_preparation` | Survey response processing to submitting the decision request. |
 | `decision_model_and_tools` | Complete survey decision request, including any retrieval rounds. `event=decision_usage` supplies model/tool call counts, aggregate tool time, and token counts. |
 | `llm_total` | Response processing to the complete spoken response being emitted. For surveys this includes decision generation, validation, and rendering. |
@@ -70,6 +74,9 @@ latency call=abc123 turn=2 response=4 metric=decision_model_and_tools ms=1250.0
 | `transport_queue_wait` | First audio entering output to the first successful paced WebSocket write to Asterisk. |
 | `speech_end_to_transport_audio` | VAD stop to the first successful audio write. This is the main server-side response-latency measure. |
 | `llm_end_to_transport_audio` | Complete spoken response text to the first audio write. Useful for isolating the delay after generation. |
+| `speech_end_to_nonsilent_audio` | VAD stop to the first successfully sent PCM chunk above the configured energy threshold. |
+| `llm_end_to_nonsilent_audio` | Complete response text to the first above-threshold outgoing PCM chunk. |
+| `transport_leading_silence` | Duration of below-threshold PCM before the response's first above-threshold chunk. Excludes time waiting for chunks. |
 
 Start with a slow turn's `speech_end_to_transport_audio`, then examine the stage
 durations to locate the delay. Durations overlap and must not all be added
@@ -94,6 +101,10 @@ question: synthesis and paced playback can continue for seconds afterward.
 | `event=transport_tail` | Estimated end of the last PCM chunk of a synthesis segment at the local paced transport. There can be several segments per response. |
 | `llm_end_to_transport_tail` | Generation completion to that segment's local audio tail. It includes ordinary speech playback time. |
 | `transport_tail_to_user_start` | Last locally sent audio tail to the next VAD speech-start detection. Includes human reaction time, telephone transit, and VAD start detection; negative values indicate overlap. |
+| `nonsilent_tail_to_user_start` | Last above-threshold outgoing chunk's tail to the next VAD speech start. Useful when the stream contains trailing silence. |
+| `transport_trailing_silence` | Duration of below-threshold PCM after the most recent above-threshold chunk, reported at each synthesis-segment end or flush. |
+| `event=transport_last_nonsilent` | Estimated end of the most recent above-threshold outgoing chunk. |
+| `event=output_audio_activity` | PCM duration, energy threshold and whether any chunk exceeded it. Counters cover the response through the reported synthesis segment. |
 | `transport_audio_gap` | More than 100 ms without the next audio chunk while the same response is playing. May indicate synthesis starvation or output/network stalls; can also include intentional pauses between synthesis segments. |
 | `event=media_xoff` / `event=media_xon` | Asterisk flow control paused/resumed audio sending. |
 | `event=transport_flush` | An interruption flushed queued audio. A flushed tail is not treated as a completed question. |
@@ -107,9 +118,10 @@ samples encoded inside a valid TTS stream.
 
 ## Limits and next step
 
-The current VAD waits for about 800 ms of silence by configuration, and the
-survey waits for a complete structured decision before TTS. These are candidates,
-not proof of the observed cause. Capture several turns before adjusting them.
+The current VAD experiment waits for about 500 ms of silence by configuration,
+and the survey waits for a complete structured decision before TTS. Compare
+several calls with the previous trace; shorter configured windows alone do not
+prove lower perceived latency.
 
 Server tracing cannot directly measure the last audible word at either handset.
 The actual customer speech endpoint precedes `speech_end`; the full perceived
@@ -118,11 +130,13 @@ Similarly, the agent-to-customer gap is not purely an application delay.
 
 If server timings are short while the audible gap remains long, the next
 measurement is a controlled test with synchronized audio at the PBX/handset to
-check telephone buffering, transit, and leading/trailing silence in synthesized
-audio. Audio recording is not enabled by this tracing change.
+check telephone buffering and transit. PCM energy timing now helps identify
+leading/trailing silence without recording. It works at 20 ms chunk resolution;
+noise can exceed the threshold and quiet speech can fall below it. Audio
+recording and silence trimming are not enabled.
 
 Offline verification (no calls to providers):
 
 ```bash
-uv run --frozen python -m unittest tests.integration.test_latency tests.integration.test_telephony tests.integration.test_agent tests.integration.test_pickup tests.integration.test_survey_follow_up tests.integration.test_tts_providers -q
+uv run --frozen python -m unittest discover -s tests -q
 ```

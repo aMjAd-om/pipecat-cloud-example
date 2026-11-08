@@ -15,6 +15,7 @@ from voice_agent.providers.tts import create_tts
 from voice_agent.observability.diagnostics import safe_diagnostic
 from voice_agent.observability.timing import LatencyProbe, TurnTiming
 from voice_agent.voice.language import LanguageLockedResponse
+from voice_agent.voice.endpointing import UtteranceEndBuffer
 
 
 async def main(connection=None, *, stop_event=None, transport=None, runtime=None,
@@ -76,7 +77,7 @@ async def main(connection=None, *, stop_event=None, transport=None, runtime=None
     customer_transcript = ([TranscriptObserver(publish_transcript, "customer")] if publish_transcript else [])
     agent_transcript = ([TranscriptObserver(publish_transcript, "agent")] if publish_transcript else [])
     pipeline = Pipeline([
-        transport.input(), LatencyProbe(timing, "input"), stt,
+        transport.input(), LatencyProbe(timing, "input"), stt, UtteranceEndBuffer(timing),
         *customer_transcript,
         *([pickup_processor] if pickup_processor else []),
         *conversation,
