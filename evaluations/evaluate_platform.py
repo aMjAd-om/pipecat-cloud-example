@@ -2,7 +2,6 @@
 import argparse
 import asyncio
 import json
-import os
 from pathlib import Path
 import statistics
 import time
@@ -12,20 +11,19 @@ from voice_agent.agents.models import SessionSelection
 from voice_agent.agents.runtime import create_runtime, AgentRuntime
 from voice_agent.conversation import Decision, ConversationManager, Questionnaire
 from voice_agent.conversation.language import speech_matches_language
+from voice_agent.config import load_settings, llm_model, llm_provider
+from voice_agent.providers.llm import create_llm_client
 
 
 async def evaluate(output, interval):
-    from openai import AsyncOpenAI
-    from voice_agent.config import load_settings
     load_settings(service="llm")
     rows = []
-    async with AsyncOpenAI(api_key=os.environ["AZURE_OPENAI_API_KEY"],
-        base_url=os.environ["AZURE_OPENAI_BASE_URL"], timeout=30, max_retries=0) as client:
+    async with create_llm_client() as client:
         async def run(runtime, name, text, expected, decide=None):
             proposal = None
             diagnostic = None
             raw_response = None
-            bound = decide or runtime.decision_client(client, os.environ["AZURE_OPENAI_DEPLOYMENT"])
+            bound = decide or runtime.decision_client(client, llm_model())
             async def capture(messages):
                 nonlocal proposal, diagnostic, raw_response
                 try:
@@ -84,11 +82,11 @@ async def evaluate(output, interval):
         for mode in ("registered", "legacy"):
             runtime = (create_runtime(SessionSelection(agent_id="bank_feedback")) if mode == "registered"
                        else AgentRuntime(ConversationManager(Questionnaire.load("questionnaires/bank-nizwa.ar.json"))))
-            bound = runtime.decision_client(client, os.environ["AZURE_OPENAI_DEPLOYMENT"])
+            bound = runtime.decision_client(client, llm_model())
             for i, case in enumerate(CALLER_QUESTIONS):
                 await run(runtime, f"{mode}_caller_sequence_{i}", case["text"], case, bound)
         runtime = create_runtime(SessionSelection(agent_id="bank_feedback", mock_customer_id="demo-ahmed"))
-        bound = runtime.decision_client(client, os.environ["AZURE_OPENAI_DEPLOYMENT"])
+        bound = runtime.decision_client(client, llm_model())
         for i, (text, value) in enumerate(JOURNEY):
             await run(runtime, f"journey_{i}", text,
                       dict(action="next_question", intent="answer", value=value, tools=0), bound)
@@ -96,7 +94,7 @@ async def evaluate(output, interval):
                 break  # Never feed later answers to the wrong active question.
         journey_completed = runtime.manager.completed
     times = [r["elapsed_ms"] for r in rows]
-    report = dict(mode="live_synthetic", model=os.environ["AZURE_OPENAI_DEPLOYMENT"],
+    report = dict(mode="live_synthetic", provider=llm_provider(), model=llm_model(),
         total=len(rows), passed=sum(r["passed"] for r in rows), journey_completed=journey_completed,
         latency_p50_ms=statistics.median(times), latency_max_ms=max(times), rows=rows,
         human_review_required=["Natural Omani Arabic", "Conciseness appropriate to the question",

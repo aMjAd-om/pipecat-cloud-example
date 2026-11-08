@@ -5,6 +5,37 @@ from dotenv import load_dotenv
 from voice_agent.paths import PROJECT_ROOT
 
 
+def llm_provider():
+    provider = os.getenv("LLM_PROVIDER", "azure").strip().lower()
+    if provider not in ("azure", "gemini"):
+        raise ValueError("LLM_PROVIDER must be azure or gemini")
+    return provider
+
+
+def llm_model():
+    name, default = (("GEMINI_MODEL", "gemini-3.5-flash-lite") if llm_provider() == "gemini"
+                     else ("AZURE_OPENAI_DEPLOYMENT", "gpt-4.1-mini"))
+    model = os.getenv(name, default).strip()
+    if not model:
+        raise ValueError(f"{name} cannot be blank")
+    return model
+
+
+def gemini_thinking_level():
+    level = os.getenv("GEMINI_THINKING_LEVEL", "minimal").strip().lower()
+    if level not in ("minimal", "low", "medium", "high"):
+        raise ValueError("GEMINI_THINKING_LEVEL must be minimal, low, medium or high")
+    return level
+
+
+def llm_connection_options():
+    if llm_provider() == "gemini":
+        return dict(api_key=os.environ["GEMINI_API_KEY"],
+                    base_url="https://generativelanguage.googleapis.com/v1beta/openai/")
+    return dict(api_key=os.environ["AZURE_OPENAI_API_KEY"],
+                base_url=os.environ["AZURE_OPENAI_BASE_URL"])
+
+
 def bounded_integer(name, default, minimum, maximum, *, allow_blank=False):
     raw = os.getenv(name, str(default)).strip()
     if allow_blank and not raw:
@@ -36,12 +67,19 @@ def load_settings(*, service=None):
         speech_endpoint_settings()
     if service is None:
         output_nonsilent_threshold()
-    required = ["AZURE_SPEECH_KEY", "AZURE_SPEECH_REGION", "AZURE_OPENAI_API_KEY",
-                "AZURE_OPENAI_BASE_URL", "AZURE_OPENAI_DEPLOYMENT"]
+    llm_required = []
+    if service not in ("stt", "tts"):
+        if llm_provider() == "gemini":
+            llm_required = ["GEMINI_API_KEY"]
+            gemini_thinking_level()
+        else:
+            llm_required = ["AZURE_OPENAI_API_KEY", "AZURE_OPENAI_BASE_URL", "AZURE_OPENAI_DEPLOYMENT"]
+        llm_model()
+    required = ["AZURE_SPEECH_KEY", "AZURE_SPEECH_REGION", *llm_required]
     if service in ("stt", "tts"):
         required = ["AZURE_SPEECH_KEY", "AZURE_SPEECH_REGION"]
     elif service == "llm":
-        required = ["AZURE_OPENAI_API_KEY", "AZURE_OPENAI_BASE_URL", "AZURE_OPENAI_DEPLOYMENT"]
+        required = llm_required
     if service in (None, "tts"):
         from voice_agent.providers.tts import tts_provider
         from voice_agent.providers.cartesia_tts import cartesia_settings
@@ -60,7 +98,7 @@ def load_settings(*, service=None):
                os.environ[key].startswith("your_")]
     if missing:
         raise ValueError("Set configuration in .env: " + ", ".join(missing))
-    if service not in ("stt", "tts"):
+    if service not in ("stt", "tts") and llm_provider() == "azure":
         url = urlsplit(os.environ["AZURE_OPENAI_BASE_URL"])
         if (url.scheme != "https" or not url.hostname or url.username or url.password
                 or url.query or url.fragment or url.path.rstrip("/") != "/openai/v1"):

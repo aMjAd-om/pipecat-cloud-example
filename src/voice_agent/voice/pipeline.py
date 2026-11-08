@@ -11,6 +11,8 @@ from pipecat.services.openai.llm import OpenAILLMService
 
 from voice_agent.providers.azure_stt import StreamingAzureSTT
 from voice_agent.providers.foundry_llm import FoundryLLMService
+from voice_agent.providers.gemini_llm import GeminiLLMService
+from voice_agent.config import llm_connection_options, llm_model, llm_provider
 from voice_agent.providers.tts import create_tts
 from voice_agent.observability.diagnostics import safe_diagnostic
 from voice_agent.observability.timing import LatencyProbe, TurnTiming
@@ -38,17 +40,17 @@ async def main(connection=None, *, stop_event=None, transport=None, runtime=None
                 timing.call_id, bool(survey_enabled), language)
     speech_options = ({"language": runtime.config.language} if runtime and runtime.config else {})
     stt = StreamingAzureSTT(timing=timing, **speech_options)
-    llm = FoundryLLMService(
-        api_key=os.environ["AZURE_OPENAI_API_KEY"],
-        base_url=os.environ["AZURE_OPENAI_BASE_URL"],
-        model=os.environ["AZURE_OPENAI_DEPLOYMENT"],
+    provider, model = llm_provider(), llm_model()
+    service = GeminiLLMService if provider == "gemini" else FoundryLLMService
+    llm = service(
+        **llm_connection_options(), model=model,
         params=OpenAILLMService.InputParams(temperature=0.2, max_tokens=150),
     )
     tts_options = ({"language": language, "preferences": runtime.config.voice}
                    if runtime and runtime.config else {})
     tts = create_tts(timing=timing, **tts_options)
-    logger.info("latency call={} event=providers stt={} tts={} model={}", timing.call_id,
-                type(stt).__name__, type(tts).__name__, os.environ["AZURE_OPENAI_DEPLOYMENT"])
+    logger.info("latency call={} event=providers stt={} tts={} llm_provider={} model={}", timing.call_id,
+                type(stt).__name__, type(tts).__name__, provider, model)
     context = OpenAILLMContext([{"role": "system", "content": (
         "You are a friendly voice assistant. "
         "The session language is fixed to " + language + ". "
@@ -68,7 +70,7 @@ async def main(connection=None, *, stop_event=None, transport=None, runtime=None
         playback_observer = PlaybackObserver()
         manager = runtime.manager
         survey_processor = SurveyConversationProcessor(manager, runtime.decision_client(
-            llm._client, os.environ["AZURE_OPENAI_DEPLOYMENT"]), timing, stop_event=stop_event)
+            llm._client, model), timing, stop_event=stop_event)
         from voice_agent.voice.pickup import PickupGreetingProcessor
         pickup_processor = PickupGreetingProcessor(manager, stop_event, timing=timing)
     conversation = ([survey_processor] if survey_processor else

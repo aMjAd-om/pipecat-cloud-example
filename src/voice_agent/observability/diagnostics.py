@@ -5,7 +5,7 @@ import re
 
 def safe_diagnostic(value):
     text = str(value)
-    for name in ("AZURE_SPEECH_KEY", "AZURE_OPENAI_API_KEY", "CARTESIA_API_KEY", "MUNSIT_API_KEY",
+    for name in ("AZURE_SPEECH_KEY", "AZURE_OPENAI_API_KEY", "GEMINI_API_KEY", "CARTESIA_API_KEY", "MUNSIT_API_KEY",
                  "DIALER_PASSWORD", "ASTERISK_AMI_SECRET"):
         secret = os.getenv(name)
         if secret:

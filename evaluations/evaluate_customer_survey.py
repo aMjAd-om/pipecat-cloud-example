@@ -1,18 +1,14 @@
-"""Opt-in synthetic Azure evaluation of the actual customer-satisfaction survey."""
+"""Opt-in synthetic evaluation of the actual customer-satisfaction survey."""
 import argparse
 import asyncio
 import json
 import math
-import os
 import statistics
 from pathlib import Path
-
-from openai import AsyncOpenAI
-
-from voice_agent.config import load_settings
+from voice_agent.config import load_settings, llm_model, llm_provider
 from voice_agent.conversation.language import speech_matches_language
 from voice_agent.conversation import Decision
-from voice_agent.providers.foundry_llm import FoundryDecisionClient
+from voice_agent.providers.llm import create_llm_client, create_decision_client
 
 from evaluations.cases.customer_survey_cases import CASES, JOURNEY, prepared
 
@@ -35,9 +31,8 @@ async def evaluate(output, interval=3.0):
     load_settings(service="llm")
     rows = []
     semaphore = asyncio.Semaphore(1)
-    async with AsyncOpenAI(api_key=os.environ["AZURE_OPENAI_API_KEY"],
-        base_url=os.environ["AZURE_OPENAI_BASE_URL"], timeout=30, max_retries=0) as client:
-        model = FoundryDecisionClient(client, os.environ["AZURE_OPENAI_DEPLOYMENT"])
+    async with create_llm_client() as client:
+        model = create_decision_client(client, llm_model())
 
         async def turn(m, name, text, action, value):
             proposal, error_type = None, None
@@ -94,7 +89,8 @@ async def evaluate(output, interval=3.0):
                              journey("english_input_journey", ENGLISH_JOURNEY))
     rows.sort(key=lambda r: r["case_id"])
     times = sorted(r["metrics"]["latency_ms"] for r in rows if r["metrics"])
-    summary = dict(planned_cases=len(CASES) + len(JOURNEY) + len(ENGLISH_JOURNEY),
+    summary = dict(provider=llm_provider(), model=llm_model(),
+        planned_cases=len(CASES) + len(JOURNEY) + len(ENGLISH_JOURNEY),
         cases=len(rows), correct=sum(r["decision_correct"] for r in rows),
         false_commits=sum(r["false_commit"] for r in rows),
         false_advances=sum(r["false_advance"] for r in rows),

@@ -33,16 +33,16 @@ class AgentRuntime:
                     workflow_type="survey", demo=bool(self.context and self.context.demo))
 
     def decision_client(self, client, model):
-        from voice_agent.providers.foundry_llm import FoundryDecisionClient
+        from voice_agent.providers.llm import create_decision_client
         if self.config is None:
-            return FoundryDecisionClient(client, model)
+            return create_decision_client(client, model)
         from voice_agent.tools.registry import default_tools
         from voice_agent.tools.executor import ToolExecutor
         executor = None
         if self.config and self.config.tools:
             executor = ToolExecutor(default_tools(self.repository), agent_id=self.config.agent_id,
                 allowed=self.config.tools, context=self.context)
-        return FoundryDecisionClient(client, model, executor=executor,
+        return create_decision_client(client, model, executor=executor,
                                      is_current=lambda version: self.manager.version == version)
 
 

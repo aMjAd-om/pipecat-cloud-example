@@ -1,4 +1,4 @@
-"""Opt-in Azure evaluation using ONLY the included synthetic customer utterances.
+"""Opt-in model evaluation using ONLY the included synthetic customer utterances.
 
 Run: python -m evaluations.evaluate_survey --live
 Default output: evaluations/results/survey_evaluation.json
@@ -8,16 +8,12 @@ import argparse
 import asyncio
 import json
 import math
-import os
 import re
 import statistics
 from pathlib import Path
-
-from openai import AsyncOpenAI
-
-from voice_agent.config import load_settings
+from voice_agent.config import load_settings, llm_model, llm_provider
 from voice_agent.conversation import ConversationManager, Decision, Questionnaire
-from voice_agent.providers.foundry_llm import FoundryDecisionClient
+from voice_agent.providers.llm import create_llm_client, create_decision_client
 
 from evaluations.cases.survey_cases import CASES
 
@@ -50,9 +46,8 @@ async def evaluate(output):
     load_settings(service="llm")
     semaphore = asyncio.Semaphore(4)
     rows = []
-    async with AsyncOpenAI(api_key=os.environ["AZURE_OPENAI_API_KEY"],
-        base_url=os.environ["AZURE_OPENAI_BASE_URL"], timeout=30, max_retries=0) as client:
-        real_model = FoundryDecisionClient(client, os.environ["AZURE_OPENAI_DEPLOYMENT"])
+    async with create_llm_client() as client:
+        real_model = create_decision_client(client, llm_model())
 
         async def run_turn(m, case_id, utterance, expected, expected_value, expected_decision=None):
             proposed = None
@@ -118,7 +113,8 @@ async def evaluate(output):
                              *(sequence(n, s) for n, s in SCENARIOS.items()))
     rows.sort(key=lambda r: r["case_id"])
     times = sorted(r["metrics"]["latency_ms"] for r in rows if "latency_ms" in r["metrics"])
-    summary = dict(cases=len(rows), correct=sum(r["decision_correct"] for r in rows),
+    summary = dict(provider=llm_provider(), model=llm_model(),
+        cases=len(rows), correct=sum(r["decision_correct"] for r in rows),
                    false_commits=sum(r["false_commit"] for r in rows),
                    false_advances=sum(r["false_advance"] for r in rows),
                    model_errors=sum(r["error_type"] is not None for r in rows),

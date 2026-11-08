@@ -2,14 +2,13 @@
 import argparse
 import asyncio
 import json
-import os
+import math
 from pathlib import Path
 import statistics
 
-from openai import AsyncOpenAI
-from voice_agent.config import load_settings
+from voice_agent.config import load_settings, llm_model, llm_provider
 from voice_agent.conversation import Decision, rating_tokens
-from voice_agent.providers.foundry_llm import FoundryDecisionClient
+from voice_agent.providers.llm import create_llm_client, create_decision_client
 
 from evaluations.cases.customer_survey_cases import prepared
 
@@ -81,9 +80,8 @@ async def evaluate(output, interval, selected=None):
     load_settings(service="llm")
     rows = []
     journeys = [j for j in JOURNEYS if not selected or j[0] in selected]
-    async with AsyncOpenAI(api_key=os.environ["AZURE_OPENAI_API_KEY"],
-            base_url=os.environ["AZURE_OPENAI_BASE_URL"], timeout=30, max_retries=0) as client:
-        decide = FoundryDecisionClient(client, os.environ["AZURE_OPENAI_DEPLOYMENT"])
+    async with create_llm_client() as client:
+        decide = create_decision_client(client, llm_model())
         for name, index, turns in journeys:
             manager = prepared(index)
             if name == "legacy_skip_repair":
@@ -143,11 +141,13 @@ async def evaluate(output, interval, selected=None):
                 if not correct:
                     break
     times = [r["metrics"]["latency_ms"] for r in rows if r["metrics"]]
-    summary = dict(planned=sum(len(j[2]) for j in journeys), evaluated=len(rows),
+    summary = dict(provider=llm_provider(), model=llm_model(),
+        planned=sum(len(j[2]) for j in journeys), evaluated=len(rows),
         correct=sum(r["correct"] for r in rows), false_commits=sum(r["false_commit"] for r in rows),
         unexpected_answer_changes=sum(r["unexpected_answer_change"] for r in rows),
         quality_failures=sum(bool(r["quality_failures"]) for r in rows),
         latency_p50_ms=statistics.median(times) if times else None,
+        latency_p95_ms=sorted(times)[math.ceil(.95 * len(times)) - 1] if times else None,
         prompt_tokens=sum(r["metrics"].get("prompt_tokens", 0) for r in rows),
         completion_tokens=sum(r["metrics"].get("completion_tokens", 0) for r in rows))
     Path(output).write_text(json.dumps(dict(summary=summary, cases=rows), ensure_ascii=False, indent=2), encoding="utf-8")

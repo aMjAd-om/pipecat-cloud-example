@@ -17,6 +17,8 @@ from voice_agent.conversation.language import safe_spoken_text
 from voice_agent.conversation import ConversationManager
 from voice_agent.agents.models import SessionSelection
 from voice_agent.agents.runtime import create_runtime, catalog
+from voice_agent.config import llm_model
+from voice_agent.providers.llm import create_llm_client
 
 ASSETS = CHAT_ASSETS
 
@@ -52,13 +54,13 @@ def view(session):
 
 
 def create_app(*, decide=None, port=7862, questionnaire_path=None):
-    """Tests inject decisions; normal startup uses the same FoundryDecisionClient."""
+    """Tests inject decisions; normal startup uses the selected production provider."""
     sessions = {}
     token = secrets.token_urlsafe(32)
     origins = {f"http://127.0.0.1:{port}", f"http://localhost:{port}"}
     hosts = {f"127.0.0.1:{port}", f"localhost:{port}"}
     language = os.getenv("DEFAULT_LANGUAGE", "ar")
-    model = os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4.1-mini")
+    model = llm_model()
     path = questionnaire_path or os.getenv(
         "SURVEY_QUESTIONNAIRE", "questionnaires/customer-satisfaction.ar.json")
     client = None
@@ -81,14 +83,12 @@ def create_app(*, decide=None, port=7862, questionnaire_path=None):
 
     @asynccontextmanager
     async def lifespan(app):
-        nonlocal decide, client
+        nonlocal decide, client, model
         if decide is None:
             from voice_agent.config import load_settings
-            from openai import AsyncOpenAI
             load_settings(service="llm")
-            client = AsyncOpenAI(api_key=os.environ["AZURE_OPENAI_API_KEY"],
-                                 base_url=os.environ["AZURE_OPENAI_BASE_URL"],
-                                 timeout=30, max_retries=0)
+            model = llm_model()
+            client = create_llm_client()
         janitor = asyncio.create_task(reap())
         try:
             yield

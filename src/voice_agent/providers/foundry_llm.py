@@ -33,6 +33,13 @@ class FoundryDecisionClient:
         self.is_current = is_current
         self._retrieved = deque(maxlen=2)
 
+    def _request_options(self, options):
+        return options
+
+    def _tool_call_message(self, call):
+        return {"id": call.id, "type": "function", "function": {
+            "name": call.function.name, "arguments": call.function.arguments}}
+
     async def __call__(self, messages):
         state = json.loads(messages[1]["content"])
         version = state["state_version"]
@@ -75,7 +82,8 @@ class FoundryDecisionClient:
                     tool_choice=("required" if iteration < self.max_tool_rounds else
                                  {"type": "function", "function": {"name": DECISION_FUNCTION_NAME}}),
                     parallel_tool_calls=False)
-            response = await asyncio.wait_for(self.client.chat.completions.create(**options), 30)
+            response = await asyncio.wait_for(
+                self.client.chat.completions.create(**self._request_options(options)), 30)
             usage["model_calls"] += 1
             if response.usage:
                 counts = response.usage.model_dump()
@@ -97,9 +105,8 @@ class FoundryDecisionClient:
                     return expand_decision(call.function.arguments, question_id), usage
                 if iteration >= self.max_tool_rounds:
                     return self._fallback(state), usage
-                conversation.append({"role": "assistant", "content": None, "tool_calls": [
-                    {"id": call.id, "type": "function", "function": {
-                        "name": call.function.name, "arguments": call.function.arguments}}]})
+                conversation.append({"role": "assistant", "content": None,
+                                     "tool_calls": [self._tool_call_message(call)]})
                 result = await self.executor.execute(call.function.name, call.function.arguments)
                 event = dict(self.executor.events[-1])
                 usage["tool_calls"] += 1

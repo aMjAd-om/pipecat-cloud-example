@@ -2,22 +2,24 @@
 import argparse
 import asyncio
 import json
-import os
 from pathlib import Path
 
-from openai import AsyncOpenAI
 
 from evaluations.cases.response_style_cases import CASES
-from voice_agent.config import load_settings
+from voice_agent.config import load_settings, llm_model, llm_provider
 from voice_agent.conversation import Decision, normalize_answer, rating_tokens
 from voice_agent.conversation.guidance import response_requirements
-from voice_agent.providers.foundry_llm import FoundryDecisionClient
+from voice_agent.providers.llm import create_llm_client, create_decision_client
 
 
 async def judge_style(client, model, case, response):
     """Semantic assessment with no prescribed response sentence or phrase list."""
+    options = dict(temperature=0, max_tokens=400)
+    if llm_provider() == "gemini":
+        from voice_agent.providers.gemini_llm import gemini_request_options
+        options = gemini_request_options()
     reply = await client.chat.completions.create(
-        model=model, temperature=0, max_tokens=400,
+        model=model, **options,
         messages=[{"role": "system", "content": (
             "Evaluate the AGENT'S response to the latest CUSTOMER utterance in a synthetic "
             "Arabic survey. The agent must not supply the customer's survey answer. In "
@@ -60,12 +62,10 @@ async def judge_style(client, model, case, response):
 
 async def evaluate(output, interval, judge):
     load_settings(service="llm")
-    model = os.environ["AZURE_OPENAI_DEPLOYMENT"]
+    model = llm_model()
     rows = []
-    async with AsyncOpenAI(api_key=os.environ["AZURE_OPENAI_API_KEY"],
-                           base_url=os.environ["AZURE_OPENAI_BASE_URL"],
-                           timeout=30, max_retries=0) as client:
-        decide = FoundryDecisionClient(client, model)
+    async with create_llm_client() as client:
+        decide = create_decision_client(client, model)
         for case in CASES:
             manager = case.manager()
             proposal = None
@@ -119,7 +119,8 @@ async def evaluate(output, interval, judge):
             rows.append(row)
             print(json.dumps(row, ensure_ascii=False), flush=True)
             await asyncio.sleep(interval)
-    summary = dict(evaluated=len(rows), passed=sum(not row["failures"] for row in rows),
+    summary = dict(provider=llm_provider(), model=model,
+        evaluated=len(rows), passed=sum(not row["failures"] for row in rows),
                    semantic_style_checked=judge)
     target = Path(output)
     target.parent.mkdir(parents=True, exist_ok=True)

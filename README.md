@@ -74,6 +74,7 @@ questionnaire settings. Provider keys and AMI secrets stay on the server.
 - [Asterisk reconstruction and dialplan](deploy/asterisk/README.md)
 - [Omantel trunk, network and rollback record](docs/OMANTEL_SIP_TRUNK.md)
 - [Configurable agent platform](docs/MULTI_AGENT_PLATFORM.md)
+- [Gemini LLM and provider switching](docs/GEMINI_LLM.md)
 - [Cartesia TTS](docs/CARTESIA_TTS.md), [Munsit TTS](docs/MUNSIT_TTS.md)
 - [Customer survey](docs/CUSTOMER_SURVEY.md)
 - [Ministry of Labour visit survey](docs/MINISTRY_OF_LABOUR_SURVEY.md)
