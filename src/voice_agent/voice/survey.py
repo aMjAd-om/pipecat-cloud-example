@@ -63,11 +63,11 @@ class SurveyConversationProcessor(FrameProcessor):
                 try:
                     decision, usage = await self.decide(messages)
                     logger.info("latency call={} turn={} response={} event=decision_usage "
-                                "model_calls={} tool_calls={} tool_ms={} prompt_tokens={} completion_tokens={}",
+                                "model_calls={} tool_calls={} tool_ms={} prompt_tokens={} completion_tokens={} protocol={}",
                                 trace.call_id, trace.turn, trace.response,
                                 usage.get("model_calls", 0), usage.get("tool_calls", 0),
                                 usage.get("tool_latency_ms", 0), usage.get("prompt_tokens", 0),
-                                usage.get("completion_tokens", 0))
+                                usage.get("completion_tokens", 0), usage.get("decision_protocol", "unknown"))
                     return decision, usage
                 finally:
                     trace.mark("decision_end")

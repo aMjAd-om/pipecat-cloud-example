@@ -1,0 +1,185 @@
+[
+  {
+    "name": "self_correction",
+    "mode": "before",
+    "proposal": {
+      "intent": "answer",
+      "answer_status": "valid",
+      "answer_value": 3,
+      "action": "next_question",
+      "spoken_response": "تم تسجيل تقييمك بثلاثة. ننتقل للسؤال التالي.",
+      "current_question_id": "overall_rating"
+    },
+    "accepted": true,
+    "committed": true,
+    "actual_value": 3,
+    "expected_value": 4,
+    "expected_action": "next_question",
+    "metrics": {
+      "latency_ms": 1156.0,
+      "accepted": true,
+      "committed": true,
+      "reason": "accepted",
+      "prompt_tokens": 4729,
+      "completion_tokens": 46,
+      "total_tokens": 4775,
+      "model_calls": 1,
+      "tool_calls": 0,
+      "tool_latency_ms": 0.0,
+      "tool_events": []
+    }
+  },
+  {
+    "name": "self_correction",
+    "mode": "after",
+    "proposal": {
+      "intent": "answer",
+      "answer_status": "valid",
+      "answer_value": 3,
+      "action": "next_question",
+      "spoken_response": "تمام، هل لديك أي ملاحظات أخرى تود مشاركتها؟",
+      "current_question_id": "overall_rating"
+    },
+    "accepted": true,
+    "committed": true,
+    "actual_value": 3,
+    "expected_value": 4,
+    "expected_action": "next_question",
+    "metrics": {
+      "latency_ms": 782.0,
+      "accepted": true,
+      "committed": true,
+      "reason": "accepted",
+      "prompt_tokens": 4097,
+      "completion_tokens": 36,
+      "total_tokens": 4133,
+      "model_calls": 1,
+      "tool_calls": 0,
+      "tool_latency_ms": 0.0,
+      "tool_events": [],
+      "decision_protocol": "compact-v1"
+    }
+  },
+  {
+    "name": "declined_skip",
+    "mode": "before",
+    "proposal": {
+      "intent": "clarify",
+      "answer_status": "needs_clarification",
+      "answer_value": null,
+      "action": "stay",
+      "spoken_response": "شكراً لتوضيحك. ممكن تقول لي كيف كانت تجربتك في التعامل مع الموظفين؟ هل كانت ممتازة، جيدة، مقبولة، أم سيئة؟ اختر واحدة من هذه الخيارات لو سمحت.",
+      "current_question_id": "staff_experience"
+    },
+    "accepted": true,
+    "committed": false,
+    "actual_value": null,
+    "expected_value": null,
+    "expected_action": "stay",
+    "metrics": {
+      "latency_ms": 1218.0,
+      "accepted": true,
+      "committed": false,
+      "reason": "accepted",
+      "prompt_tokens": 5335,
+      "completion_tokens": 78,
+      "total_tokens": 5413,
+      "model_calls": 1,
+      "tool_calls": 0,
+      "tool_latency_ms": 0.0,
+      "tool_events": []
+    }
+  },
+  {
+    "name": "declined_skip",
+    "mode": "after",
+    "proposal": {
+      "intent": "clarify",
+      "answer_status": "needs_clarification",
+      "answer_value": null,
+      "action": "stay",
+      "spoken_response": "هل يمكنك من فضلك اختيار واحدة من الخيارات: ممتازة، جيدة، مقبولة، أو سيئة؟",
+      "current_question_id": "staff_experience"
+    },
+    "accepted": true,
+    "committed": false,
+    "actual_value": null,
+    "expected_value": null,
+    "expected_action": "stay",
+    "metrics": {
+      "latency_ms": 907.0,
+      "accepted": true,
+      "committed": false,
+      "reason": "accepted",
+      "prompt_tokens": 4637,
+      "completion_tokens": 47,
+      "total_tokens": 4684,
+      "model_calls": 1,
+      "tool_calls": 0,
+      "tool_latency_ms": 0.0,
+      "tool_events": [],
+      "decision_protocol": "compact-v1"
+    }
+  },
+  {
+    "name": "pause_with_rating",
+    "mode": "before",
+    "proposal": {
+      "intent": "answer",
+      "answer_status": "valid",
+      "answer_value": 4,
+      "action": "next_question",
+      "spoken_response": "تم تسجيل تقييمك بأربعة. إذا كنت تريد التوقف الآن، فقط أخبرني.",
+      "current_question_id": "overall_rating"
+    },
+    "accepted": true,
+    "committed": true,
+    "actual_value": 4,
+    "expected_value": null,
+    "expected_action": "pause",
+    "metrics": {
+      "latency_ms": 922.0,
+      "accepted": true,
+      "committed": true,
+      "reason": "accepted",
+      "prompt_tokens": 4728,
+      "completion_tokens": 51,
+      "total_tokens": 4779,
+      "model_calls": 1,
+      "tool_calls": 0,
+      "tool_latency_ms": 0.0,
+      "tool_events": []
+    }
+  },
+  {
+    "name": "pause_with_rating",
+    "mode": "after",
+    "proposal": {
+      "intent": "answer",
+      "answer_status": "valid",
+      "answer_value": 4,
+      "action": "next_question",
+      "spoken_response": "تمام، سجلت تقييمك بأربعة. نكمل؟",
+      "current_question_id": "overall_rating"
+    },
+    "accepted": true,
+    "committed": true,
+    "actual_value": 4,
+    "expected_value": null,
+    "expected_action": "pause",
+    "metrics": {
+      "latency_ms": 796.0,
+      "accepted": true,
+      "committed": true,
+      "reason": "accepted",
+      "prompt_tokens": 4096,
+      "completion_tokens": 35,
+      "total_tokens": 4131,
+      "model_calls": 1,
+      "tool_calls": 0,
+      "tool_latency_ms": 0.0,
+      "tool_events": [],
+      "decision_protocol": "compact-v1"
+    }
+  }
+]

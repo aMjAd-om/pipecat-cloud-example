@@ -7,6 +7,7 @@ from uuid import uuid4
 from voice_agent.conversation.models import Questionnaire, Decision, Snapshot, Result
 from voice_agent.conversation.answers import rating_tokens, normalize_answer
 from voice_agent.conversation.composer import compose
+from voice_agent.conversation.prompts import TURN_REMINDER
 from voice_agent.conversation.guidance import response_requirements
 from voice_agent.conversation.rendering import direct_reply
 
@@ -292,36 +293,7 @@ class ConversationManager:
             return self._reject("stale")
         start = time.monotonic()
         try:
-            q = next(q for q in self.questionnaire.questions if q.id == snap.question_id)
-            messages = [*snap.messages, {"role": "system", "content":
-                "LOCKED output language for the entire call: " + self.language +
-                ". Do not switch language or quote words in another language." +
-                ". Active question (this overrides any older question in history): " +
-                q.model_dump_json() +
-                ". Answer requirements: " + json.dumps(response_requirements(q), ensure_ascii=False) +
-                ". Answer the latest meaning first, using recent dialogue and familiar "
-                "everyday spoken vocabulary. Avoid formal written-Arabic tone, administrative "
-                "announcements, and automatic gratitude. Ask politely for "
-                "only the missing information in this question's format; acknowledge qualitative "
-                "feedback without choosing a rating for the customer. Adapt to repeated "
-                "clarifications rather than repeating a script or attaching a fixed courtesy "
-                "phrase. Use only the active bounds and choices, never a default scale. "
-                "For company or identity questions, answer only what was asked from authorized "
-                "facts; Python handles the separate return to the question. For transitions, "
-                "Python supplies the exact next question. Preserve the action/status contract "
-                "and distinguish confirmation of a pending action from an answer. "
-                "Who is speaking uses identity/not_answered/stay and identifies the "
-                "assistant's role, not only the company. Why are you calling uses "
-                "company/not_answered/stay and explains the actual calling purpose. "
-                "Only a company-name question needs just the organization name. "
-                "A question about which interaction/visit, branch or date is "
-                "company/not_answered/stay with null answer_value. Answer from runtime "
-                "context even before consent; permission is needed to collect survey "
-                "answers, not to explain the call. Do not append a consent question. "
-                "Missing metadata means details are unavailable, not that the customer "
-                "must consent first. A clear disputed visit with a configured "
-                "wrong_recipient_response uses wrong_recipient/not_answered/finish. "
-                "For correct_previous use not_answered/repeat with the answered question ID."},
+            messages = [*snap.messages, {"role": "system", "content": TURN_REMINDER},
                 {"role": "user", "content": utterance}]
             decision, usage = await decide(messages)
             decision = Decision.model_validate(decision) if isinstance(decision, dict) else Decision.model_validate_json(decision)
@@ -342,7 +314,7 @@ class ConversationManager:
                                  accepted=result.accepted, committed=result.committed,
                                  reason=result.reason, **{k: usage.get(k, 0) for k in
                                  ("prompt_tokens", "completion_tokens", "total_tokens", "model_calls",
-                                  "tool_calls", "tool_latency_ms", "tool_events")}))
+                                  "tool_calls", "tool_latency_ms", "tool_events", "decision_protocol")}))
         return result
 
     def clear(self):

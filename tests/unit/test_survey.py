@@ -273,8 +273,10 @@ class SurveyTests(unittest.IsolatedAsyncioTestCase):
         m = manager()
         client = AsyncMock()
         from types import SimpleNamespace as NS
+        from voice_agent.providers.decision_protocol import DECISION_FIELDS
+        compact = {short: decision()[full] for short, full in DECISION_FIELDS.items()}
         client.chat.completions.create.return_value = NS(choices=[NS(finish_reason="stop",
-            message=NS(content=json.dumps(decision())))], usage=None)
+            message=NS(content=json.dumps(compact)))], usage=None)
         p = SurveyConversationProcessor(m, FoundryDecisionClient(client, "gpt-4.1-mini"), TurnTiming())
         p.push_frame = AsyncMock()
         await p.process_frame(TranscriptionFrame("4", "", "event"), FrameDirection.DOWNSTREAM)

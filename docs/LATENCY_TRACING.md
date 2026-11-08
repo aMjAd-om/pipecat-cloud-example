@@ -8,6 +8,10 @@ transcripts, phone numbers, credentials, or model request bodies are logged.
 These changes add measurements; they do not tune silence windows, prompts,
 streaming behavior, or speech speed. They require deploying the updated code.
 
+The subsequent [decision-latency experiment](DECISION_LATENCY.md) compacts model
+output and removes repeated instructions. Its logs identify `protocol=compact-v1`;
+that document includes before/after measurements and remaining semantic failures.
+
 ## Capture a test
 
 On the existing Ubuntu deployment, after installing the updated code, rebuild

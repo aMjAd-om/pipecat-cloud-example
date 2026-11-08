@@ -1,0 +1,56 @@
+{
+  "baseline_commit": "14e0e08667f8685ebe2060b854707631bedc7064",
+  "protocol": "compact-v1",
+  "matched_before": {
+    "cases": 33,
+    "latency_p50_ms": 1078.0,
+    "prompt_tokens_mean": 4977.09,
+    "completion_tokens_mean": 65.03,
+    "correct": 27,
+    "false_commits": 0,
+    "quality_failure_cases": 8
+  },
+  "matched_after": {
+    "cases": 33,
+    "latency_p50_ms": 875.0,
+    "prompt_tokens_mean": 4313.52,
+    "completion_tokens_mean": 46.76,
+    "correct": 32,
+    "false_commits": 0,
+    "quality_failure_cases": 7
+  },
+  "reduction_percent": {
+    "latency_p50_ms": 18.83,
+    "prompt_tokens_mean": 13.33,
+    "completion_tokens_mean": 28.09
+  },
+  "full_before": {
+    "planned": 36,
+    "evaluated": 33,
+    "correct": 27,
+    "false_commits": 0,
+    "unexpected_answer_changes": 0,
+    "quality_failures": 8,
+    "latency_p50_ms": 1078.0,
+    "prompt_tokens": 164244,
+    "completion_tokens": 2146
+  },
+  "full_after": {
+    "planned": 36,
+    "evaluated": 36,
+    "correct": 33,
+    "false_commits": 1,
+    "unexpected_answer_changes": 0,
+    "quality_failures": 7,
+    "latency_p50_ms": 875.0,
+    "prompt_tokens": 156086,
+    "completion_tokens": 1674
+  },
+  "limitations": [
+    "Sequential local synthetic model runs, not end-to-end telephone latency.",
+    "Matched by journey, turn, input and active question; generated histories can differ.",
+    "Baseline stops a journey after its first incorrect turn; full-run totals are unequal.",
+    "Live model behavior and timing vary. Remaining correction and pause errors were also reproduced with original code in decision_latency.edges.json.",
+    "The live conversation suite is not fully passing; this is a performance experiment, not a clean semantic acceptance result."
+  ]
+}

@@ -9,12 +9,14 @@ from voice_agent.tools.registry import default_tools, ToolRegistry
 from voice_agent.tools.definitions.visits import VisitArguments
 from voice_agent.tools.executor import ToolExecutor
 from voice_agent.conversation.models import DECISION_FUNCTION_NAME
+from voice_agent.providers.decision_protocol import DECISION_FIELDS
 from tests.unit.test_survey import decision
 
 
 def response(*, payload=None, tool=None, arguments='{"limit": 3}'):
     if payload is not None:
-        tool, arguments = DECISION_FUNCTION_NAME, json.dumps(payload)
+        tool, arguments = DECISION_FUNCTION_NAME, json.dumps(
+            {short: payload[full] for short, full in DECISION_FIELDS.items()})
     calls = [NS(id="call-1", function=NS(name=tool, arguments=arguments))] if tool else None
     return NS(choices=[NS(finish_reason="tool_calls" if tool else "stop",
         message=NS(content=json.dumps(payload) if payload else None, tool_calls=calls, refusal=None))],
@@ -79,9 +81,9 @@ class ToolTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("response_format", call)
         final_schema = next(t["function"] for t in call["tools"] if t["function"]["name"] == DECISION_FUNCTION_NAME)
         self.assertTrue(final_schema["strict"])
-        self.assertEqual(final_schema["parameters"]["properties"]["current_question_id"]["enum"], ['consent'])
+        self.assertNotIn("current_question_id", final_schema["parameters"]["properties"])
         self.assertEqual(set(final_schema["parameters"]["required"]), {
-            "intent", "answer_status", "answer_value", "action", "spoken_response", "current_question_id"})
+            "intent", "status", "value", "action", "reply"})
         self.assertEqual(runtime.manager.metrics[-1]["tool_calls"], 1)
         # Retrieved facts remain available on the next turn without another lookup.
         client.chat.completions.create.side_effect = None
