@@ -51,7 +51,7 @@ class StreamingMunsitTTS(TTSService):
             return
         request = {**self._config, "text": text, "streaming": True, "sample_rate": 24000}
         if self.timing:
-            self.timing.mark("tts_start")
+            self.timing.mark("tts_start", once=True)
         yield TTSStartedFrame()
         try:
             async with asyncio.timeout(90):
@@ -78,7 +78,7 @@ class StreamingMunsitTTS(TTSService):
                             size = len(pending) // 2 * 2
                             if size:
                                 if self.timing and not received:
-                                    self.timing.mark("tts_first")
+                                    self.timing.mark("tts_first", once=True)
                                 received = True
                                 yield TTSAudioRawFrame(pending[:size], 24000, 1)
                                 pending = pending[size:]

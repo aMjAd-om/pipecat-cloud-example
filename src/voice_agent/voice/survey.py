@@ -1,6 +1,7 @@
 """Survey-only Pipecat adapter; the existing speech/transport adapters are unchanged."""
 import asyncio
 from dataclasses import dataclass
+from loguru import logger
 
 from pipecat.frames.frames import (
     CancelFrame, ControlFrame, EndFrame, LLMFullResponseEndFrame,
@@ -32,8 +33,10 @@ class SurveyConversationProcessor(FrameProcessor):
             frame.metadata.setdefault("survey_snapshot", self.manager.snapshot())
         await super().queue_frame(frame, direction, callback)
 
-    async def _speak(self, text):
+    async def _speak(self, text, *, new_response=True):
         if text:
+            if new_response:
+                self.timing.start_response()
             await self.push_frame(LLMFullResponseStartFrame())
             await self.push_frame(LLMTextFrame(text))
             await self.push_frame(LLMFullResponseEndFrame())
@@ -52,15 +55,29 @@ class SurveyConversationProcessor(FrameProcessor):
         elif isinstance(frame, TranscriptionFrame):
             if self._ending_call:
                 return
-            self.timing.mark("llm_start")
-            for key in ("llm_first", "llm_end", "tts_start", "tts_first", "output"):
-                self.timing.stamps.pop(key, None)
+            self.timing.start_response()
+            trace = self.timing.snapshot()
+
+            async def traced_decide(messages):
+                trace.mark("decision_start")
+                try:
+                    decision, usage = await self.decide(messages)
+                    logger.info("latency call={} turn={} response={} event=decision_usage "
+                                "model_calls={} tool_calls={} tool_ms={} prompt_tokens={} completion_tokens={}",
+                                trace.call_id, trace.turn, trace.response,
+                                usage.get("model_calls", 0), usage.get("tool_calls", 0),
+                                usage.get("tool_latency_ms", 0), usage.get("prompt_tokens", 0),
+                                usage.get("completion_tokens", 0))
+                    return decision, usage
+                finally:
+                    trace.mark("decision_end")
+
             identity = (frame.user_id, frame.timestamp) if frame.timestamp else (frame.id,)
-            result = await self.manager.turn(identity, frame.text, self.decide,
+            result = await self.manager.turn(identity, frame.text, traced_decide,
                                             snapshot=frame.metadata.get("survey_snapshot"))
             # An interrupted request must not speak after a newer user turn.
             if result.reason != "stale":
-                await self._speak(result.spoken_response)
+                await self._speak(result.spoken_response, new_response=False)
                 if result.end_call:
                     self._ending_call = True
                     marker = PlaybackMarkerFrame()

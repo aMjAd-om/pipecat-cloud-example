@@ -133,6 +133,7 @@ class StreamingAzureSTT(STTService):
             self._seen.append(identity)
             self.timing.mark("final", at=at)
             logger.info("STT final event chars={}", len(result.text))
+            self.timing.mark("final_dispatched")
             await self.push_frame(TranscriptionFrame(
                 result.text, "", time_now_iso8601(),
                 os.getenv("AZURE_STT_LANGUAGE", "ar-OM")))

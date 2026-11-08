@@ -69,6 +69,7 @@ The configured agent comes from `TELEPHONY_AGENT_ID`, `AGENT_ID` or the existing
 questionnaire settings. Provider keys and AMI secrets stay on the server.
 
 - [Web dialer setup](docs/WEB_DIALER.md)
+- [Trace conversation latency](docs/LATENCY_TRACING.md)
 - [Complete server backup and recovery](docs/VOICE_SERVER_RECOVERY.md)
 - [Asterisk reconstruction and dialplan](deploy/asterisk/README.md)
 - [Omantel trunk, network and rollback record](docs/OMANTEL_SIP_TRUNK.md)

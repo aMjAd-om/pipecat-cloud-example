@@ -24,10 +24,11 @@ class PickupGreetingProcessor(FrameProcessor):
     Synthesis completion alone does not mean the caller has heard a greeting.
     """
 
-    def __init__(self, manager, stop_event, *, pickup_pause=1.0, response_pause=3.0,
+    def __init__(self, manager, stop_event, *, timing=None, pickup_pause=1.0, response_pause=3.0,
                  playback_timeout=30.0):
         super().__init__()
         self.manager = manager
+        self.timing = timing
         self.stop_event = stop_event
         self.pickup_pause = pickup_pause
         self.response_pause = response_pause
@@ -41,6 +42,8 @@ class PickupGreetingProcessor(FrameProcessor):
         self._introducing = False
 
     async def _speak(self, text):
+        if self.timing:
+            self.timing.start_response()
         marker = PlaybackMarkerFrame()
         self._playback_finished = marker.finished
         await self.push_frame(LLMFullResponseStartFrame())

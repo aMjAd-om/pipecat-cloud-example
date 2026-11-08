@@ -308,6 +308,12 @@ class EndpointTests(unittest.TestCase):
         async def observed_pipeline(connection, **options):
             await bot.main(connection, publish_transcript=lambda role, text: transcripts.append((role, text)),
                            **options)
+        async def wait_agent_transcript(text):
+            # The final packet reaches the socket before the queued TTSTextFrame
+            # reaches the transcript observer. Wait for the event being tested.
+            async with asyncio.timeout(2):
+                while ("agent", text) not in transcripts:
+                    await asyncio.sleep(.005)
         async def wait_closed(client):
             for _ in range(300):
                 if not client.app.state.calls:
@@ -322,8 +328,8 @@ class EndpointTests(unittest.TestCase):
              patch.object(bot, "create_tts", TTS), \
              patch.object(bot, "FoundryLLMService", LLM), \
              patch("voice_agent.providers.foundry_llm.FoundryDecisionClient", DecisionClient), \
-             patch("voice_agent.voice.pickup.PickupGreetingProcessor", side_effect=lambda *args:
-                   PickupGreetingProcessor(*args, pickup_pause=.01, response_pause=.3)):
+             patch("voice_agent.voice.pickup.PickupGreetingProcessor", side_effect=lambda *args, **kwargs:
+                   PickupGreetingProcessor(*args, **kwargs, pickup_pause=.01, response_pause=.3)):
             with self.client(observed_pipeline) as client:
                 with client.websocket_connect("/telephony/media", subprotocols=["media"]) as ws:
                     initial = start_event()
@@ -351,6 +357,7 @@ class EndpointTests(unittest.TestCase):
                     self.assertEqual(len(decisions), 2)
                     self.assertIn("بشكل عام", texts[2])
                     self.assertIn("السبب", texts[3])
+                    client.portal.call(wait_agent_transcript, texts[3])
                     self.assertIn(("agent", "السلام عليكم"), transcripts)
                     self.assertIn(("customer", "نعم"), transcripts)
                     self.assertIn(("agent", texts[3]), transcripts)

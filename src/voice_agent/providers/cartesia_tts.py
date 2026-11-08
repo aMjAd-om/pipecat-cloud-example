@@ -57,7 +57,7 @@ class StreamingCartesiaTTS(TTSService):
             "generation_config": {k: self._config[k] for k in ("speed", "volume")},
         }
         if self.timing:
-            self.timing.mark("tts_start")
+            self.timing.mark("tts_start", once=True)
         yield TTSStartedFrame()
         try:
             async with asyncio.timeout(90):
@@ -77,7 +77,7 @@ class StreamingCartesiaTTS(TTSService):
                             size = len(pending) // 2 * 2
                             if size:
                                 if self.timing and not received:
-                                    self.timing.mark("tts_first")
+                                    self.timing.mark("tts_first", once=True)
                                 received = True
                                 yield TTSAudioRawFrame(pending[:size], 24000, 1)
                                 pending = pending[size:]

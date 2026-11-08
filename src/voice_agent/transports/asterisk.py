@@ -15,6 +15,7 @@ from pipecat.processors.frame_processor import FrameDirection
 from pipecat.transports.base_input import BaseInputTransport
 from pipecat.transports.base_output import BaseOutputTransport
 from pipecat.transports.base_transport import BaseTransport, TransportParams
+from voice_agent.observability.timing import LatencyPlaybackFrame
 
 
 class MediaProtocolError(ValueError):
@@ -93,6 +94,10 @@ class AsteriskPeer:
         self.epoch = 0
         self.next_send = 0.0
         self.stats = TelephoneAudioStats()
+        self.timing = None
+        self.playback_timing = None
+        self.last_audio_end = None
+        self.last_audio_sent = None
 
     async def command(self, command):
         async with self.lock:
@@ -110,11 +115,29 @@ class AsteriskPeer:
             self.drained.clear()
             await asyncio.wait_for(self.ws.send_bytes(data), 2)
             self.stats.out_frames += 1
-            self.next_send = max(self.next_send, time.monotonic()) + len(data) / 32000
+            sent = time.monotonic()
+            self.next_send = max(self.next_send, sent) + len(data) / 32000
+            if self.playback_timing:
+                trace = self.playback_timing
+                trace.mark("transport_first", once=True, at=sent)
+                if self.last_audio_end is not None and self.last_audio_sent is not None:
+                    gap = sent - self.last_audio_end
+                    if gap > .1:
+                        trace.metric("transport_audio_gap", self.last_audio_end, sent)
+                self.last_audio_sent = sent
+                self.last_audio_end = self.next_send
+                if self.timing:
+                    self.timing.last_audio_end = self.next_send
 
     async def flush(self):
         self.epoch += 1
         self.next_send = 0
+        if self.playback_timing:
+            self.playback_timing.mark("transport_flush")
+        self.playback_timing = None
+        self.last_audio_end = self.last_audio_sent = None
+        if self.timing:
+            self.timing.last_audio_end = None
         self.writable.set()
         await self.command("FLUSH_MEDIA")
 
@@ -129,10 +152,16 @@ class AsteriskPeer:
             raise ValueError("Repeated MEDIA_START")
         if kind == "MEDIA_XOFF":
             self.writable.clear()
+            if self.playback_timing:
+                self.playback_timing.mark("media_xoff")
         elif kind == "MEDIA_XON":
             self.writable.set()
+            if self.playback_timing:
+                self.playback_timing.mark("media_xon")
         elif kind == "QUEUE_DRAINED":
             self.drained.set()
+            if self.playback_timing:
+                self.playback_timing.mark("pbx_queue_drained")
         # DTMF and informational events are not survey answers.
 
     async def drain(self):
@@ -162,6 +191,10 @@ class AsteriskInput(BaseInputTransport):
     async def start(self, frame):
         await super().start(frame)
         await self.set_transport_ready(frame)
+        if self.owner.peer.timing:
+            vad = self._params.vad_analyzer.params
+            logger.info("latency call={} event=vad_config start_ms={} stop_ms={}",
+                        self.owner.peer.timing.call_id, vad.start_secs * 1000, vad.stop_secs * 1000)
         self._audio_in_queue._maxsize = 100
         self.receiver = self.create_task(self.receive())
         if os.getenv("TELEPHONY_AUDIO_DIAGNOSTICS", "false").lower() == "true":
@@ -241,6 +274,19 @@ class AsteriskOutput(BaseOutputTransport):
         super().__init__(params)
         self.peer = peer
         self.interrupting = False
+
+    async def push_frame(self, frame, direction=FrameDirection.DOWNSTREAM):
+        # These control frames emerge from MediaSender's paced queue, in audio
+        # order. Audio resampling replaces frames and discards their metadata.
+        if direction == FrameDirection.DOWNSTREAM:
+            if isinstance(frame, LatencyPlaybackFrame):
+                self.peer.playback_timing = frame.timing
+                self.peer.last_audio_end = self.peer.last_audio_sent = None
+                return
+            if isinstance(frame, TTSStoppedFrame) and self.peer.playback_timing:
+                if self.peer.last_audio_end is not None:
+                    self.peer.playback_timing.mark("transport_tail", at=self.peer.last_audio_end)
+        await super().push_frame(frame, direction)
 
     async def start(self, frame):
         await super().start(frame)

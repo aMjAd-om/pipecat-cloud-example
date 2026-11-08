@@ -31,6 +31,10 @@ async def main(connection=None, *, stop_event=None, transport=None, runtime=None
         runtime = runtime or create_runtime()
         language = runtime.manager.language
     timing = TurnTiming()
+    if hasattr(transport, "peer"):
+        transport.peer.timing = timing
+    logger.info("latency call={} event=session_start survey={} language={}",
+                timing.call_id, bool(survey_enabled), language)
     speech_options = ({"language": runtime.config.language} if runtime and runtime.config else {})
     stt = StreamingAzureSTT(timing=timing, **speech_options)
     llm = FoundryLLMService(
@@ -42,6 +46,8 @@ async def main(connection=None, *, stop_event=None, transport=None, runtime=None
     tts_options = ({"language": language, "preferences": runtime.config.voice}
                    if runtime and runtime.config else {})
     tts = create_tts(timing=timing, **tts_options)
+    logger.info("latency call={} event=providers stt={} tts={} model={}", timing.call_id,
+                type(stt).__name__, type(tts).__name__, os.environ["AZURE_OPENAI_DEPLOYMENT"])
     context = OpenAILLMContext([{"role": "system", "content": (
         "You are a friendly voice assistant. "
         "The session language is fixed to " + language + ". "
@@ -63,7 +69,7 @@ async def main(connection=None, *, stop_event=None, transport=None, runtime=None
         survey_processor = SurveyConversationProcessor(manager, runtime.decision_client(
             llm._client, os.environ["AZURE_OPENAI_DEPLOYMENT"]), timing, stop_event=stop_event)
         from voice_agent.voice.pickup import PickupGreetingProcessor
-        pickup_processor = PickupGreetingProcessor(manager, stop_event)
+        pickup_processor = PickupGreetingProcessor(manager, stop_event, timing=timing)
     conversation = ([survey_processor] if survey_processor else
                     [aggregator.user(), LatencyProbe(timing, "request"), llm])
     from voice_agent.voice.transcript import TranscriptObserver
@@ -74,8 +80,8 @@ async def main(connection=None, *, stop_event=None, transport=None, runtime=None
         *customer_transcript,
         *([pickup_processor] if pickup_processor else []),
         *conversation,
-        LanguageLockedResponse(language),
-        LatencyProbe(timing, "llm"), tts, LatencyProbe(timing, "audio"),
+        LatencyProbe(timing, "llm"), LanguageLockedResponse(language),
+        LatencyProbe(timing, "language"), tts, LatencyProbe(timing, "audio"),
         transport.output(), *agent_transcript,
         *([] if survey_processor else [aggregator.assistant()]),
         *([playback_observer] if playback_observer else []),
@@ -142,3 +148,4 @@ async def main(connection=None, *, stop_event=None, transport=None, runtime=None
         await stt.close()
         await tts.close()
         await llm._client.close()
+        logger.info("latency call={} event=session_end", timing.call_id)
