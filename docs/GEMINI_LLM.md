@@ -52,12 +52,25 @@ is explicitly sent through Google's native `thinking_config` in `extra_body`,
 including on the legacy streaming assistant path. Azure request settings remain
 unchanged. Both clients keep a 30-second request timeout and no SDK retries.
 
+The Python SDK merges its `extra_body` argument into the request root. Google's
+REST format requires an `extra_body.google.thinking_config` field, so the adapter
+nests a literal `extra_body` inside that SDK argument. A root-level `google`
+field is rejected with HTTP 400.
+
+The compatibility API also receives one combined system instruction containing
+the policy, authoritative survey state, agent instructions and turn reminder.
+Separate system messages can replace earlier ones. Untrusted runtime context,
+customer text and tool results retain their separate user/tool roles.
+
 `GEMINI_THINKING_LEVEL` accepts `minimal`, `low`, `medium` and `high`. Model-specific
 support still matters: for example, Gemini 3.8 Flash requires `low` or higher.
 Higher levels may increase decision latency. Invalid provider names, empty model
 names, invalid thinking levels and missing selected-provider credentials fail
 startup validation. An unavailable model or account quota is reported by the API
 when a request is made; model access is not guaranteed by local validation.
+Telephone traces emit `event=decision_error` with the exception type and HTTP
+status on request/parsing failures, and `event=decision_result` with the validated
+turn outcome. They do not log API error bodies, prompts or credentials.
 
 ## Compare before using on calls
 

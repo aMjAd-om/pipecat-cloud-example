@@ -69,12 +69,25 @@ class SurveyConversationProcessor(FrameProcessor):
                                 usage.get("tool_latency_ms", 0), usage.get("prompt_tokens", 0),
                                 usage.get("completion_tokens", 0), usage.get("decision_protocol", "unknown"))
                     return decision, usage
+                except Exception as exc:
+                    # Log request/parse failure metadata before the manager
+                    # returns its recoverable model_error response. SDK error
+                    # messages/bodies may contain prompts or credentials.
+                    status = getattr(exc, "status_code", None)
+                    logger.warning("latency call={} turn={} response={} event=decision_error "
+                                   "error_type={} http_status={}", trace.call_id, trace.turn,
+                                   trace.response, type(exc).__name__,
+                                   status if isinstance(status, int) else "none")
+                    raise
                 finally:
                     trace.mark("decision_end")
 
             identity = (frame.user_id, frame.timestamp) if frame.timestamp else (frame.id,)
             result = await self.manager.turn(identity, frame.text, traced_decide,
                                             snapshot=frame.metadata.get("survey_snapshot"))
+            logger.info("latency call={} turn={} response={} event=decision_result "
+                        "accepted={} committed={} reason={}", trace.call_id, trace.turn,
+                        trace.response, result.accepted, result.committed, result.reason)
             # An interrupted request must not speak after a newer user turn.
             if result.reason != "stale":
                 await self._speak(result.spoken_response, new_response=False)
